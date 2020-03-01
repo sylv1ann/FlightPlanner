@@ -1,92 +1,103 @@
-package cz.cuni.mff.java.flighplanner;
+package cz.cuni.mff.java.flightplanner;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
 import java.util.*;
-import java.util.jar.*;
 
 public class DialogCenter {
 
-    private static Scanner inputReader = new Scanner(System.in);
-    private static BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    private static ArrayList<Module> modules = new ArrayList<>(), activeModules = new ArrayList<>();
-
     public static void main(String[] args) {
-
-       List<Class<?>> cl = setAllModules("cz.cuni.mff.java.flighplanner");
-       for (Class<?> classe : cl) {
-           System.out.println(classe.getName());
-       }
-
-
-        /*setAllModules();
+        ArrayList<Module> modules, activeModules;
+        modules = Module.setAllModules(DialogCenter.class.getPackageName());
         showMainMenu();
-        chooseModules();*/
+        activeModules = chooseModules(modules);
+        if (activeModules.size() > 0) {
+            checkActiveModules(activeModules);
+            Module.processModules(activeModules);
+        }
     }
 
-    private static List<Class<?>> setAllModules(String packageName) {
-        String path = packageName.replaceAll("\\.", File.separator);
-        List<Class<?>> classes = new ArrayList<>();
-        String[] classPathEntries = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
+    public static OutputStream chooseOutputForm() {
+        OutputStream result = System.out;
 
-        String name;
-        for (String classpathEntry : classPathEntries) {
-            if (classpathEntry.endsWith(".jar")) {
-                File jar = new File(classpathEntry);
-                try {
-                    JarInputStream is = new JarInputStream(new FileInputStream(jar));
-                    JarEntry entry;
-                    while((entry = is.getNextJarEntry()) != null) {
-                        name = entry.getName();
-                        if (name.endsWith(".class")) {
-                            if (name.contains(path) && name.endsWith(".class")) {
-                                String classPath = name.substring(0, entry.getName().length() - 6);
-                                classPath = classPath.replaceAll("[\\|/]", ".");
-                                classes.add(Class.forName(classPath));
-                            }
-                        }
-                    }
-                } catch (Exception ex) {
-                    // Silence is gold
-                }
-            } else {
-                try {
-                    File base = new File(classpathEntry + File.separatorChar + path);
-                    for (File file : base.listFiles()) {
-                        name = file.getName();
-                        if (name.endsWith(".class")) {
-                            name = name.substring(0, name.length() - 6);
-                            classes.add(Class.forName(packageName + "." + name));
-                        }
-                    }
-                } catch (Exception ex) {
-                    // Silence is gold
-                }
+        System.out.println("You can choose whether your output will be shown on screen or written into separate file/files.");
+        System.out.print("Please type your choice (screen / file / default): ");
+
+        switch (getInput()) {
+            default:
+            case "default":
+            case "screen":
+                break;
+            case "file":
+                result = setOutputStream();
+                break;
+        }
+        return result;
+    }
+
+    private static OutputStream setOutputStream() {
+        OutputStream result;
+
+        String fileName, filePath;
+        System.out.print("Please enter your desired file name: ");
+        fileName = getInput();
+        if (!fileName.contains(".txt")) {
+            fileName = fileName + ".txt";
+        }
+        System.out.println("Do you want to choose the directory for your new file? (y/n)\nIf not, current directory will be used.");
+        if (getInput().toLowerCase().startsWith("y")) {
+            System.out.print("Please enter the absolute path of the destination directory: ");
+            filePath = getInput();
+        } else {
+            filePath = ".";
+        }
+        try {
+            if (".".equals(filePath))
+                result = new FileOutputStream(Downloader.fileFromPathCreator(fileName));
+            else {
+                result = new FileOutputStream(new File(filePath + File.pathSeparator + fileName));
             }
+        } catch (FileNotFoundException e) {
+            System.out.println("Something went wrong. Please try again.");
+            result = setOutputStream();
         }
 
-        return classes;
-        /*// TODO: 29/02/2020 Try to use reflection API to get all classes that extend Module class and create their instances
-        modules.add(new GetWeatherInfoModule());
-        modules.add(new GetAirportInfoModule());
-        modules.add(new CreateFlightPlanModule());
-        modules.add(new ExitFlightPlannerModule());*/
+        return result;
     }
 
+
+    /**
+     * This method only shows initial text information about Flight Planner.
+     */
     private static void showMainMenu() {
         System.out.println("Welcome to this amazing Flight Planner.");
-        System.out.println("You will be provided with several possibilities to show/construct your entire flight plan or its parts.");
-        pressAnyKeyToContinue();
+        System.out.println("You will be provided with several possibilities to show/construct your entire flight plan or its parts.\n");
     }
 
-    private static void pressAnyKeyToContinue() {
-        System.out.println("Press 'Enter' to continue...");
-        try {
-            System.in.read();
+    private static @NotNull String getInput() {
+        String line;
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
+            do {
+                line = br.readLine();
+            } while (line == null || line.isBlank());
         }
-        catch(Exception ignored) { }
+        catch (IOException ignored) {
+            System.out.println("Something went wrong. Please try again.");
+            line = getInput();
+        }
+
+        assert line != null;
+        return line;
     }
 
-    private static void chooseModules() {
+    /**
+     * Invokes an interactive mode which makes user choose from available methods.
+     */
+    @NotNull
+    private static ArrayList<Module> chooseModules(@NotNull List<Module> modules) {
+        ArrayList<Module> activeModules = new ArrayList<>();
         String line;
         String[] options;
         boolean repCond;
@@ -96,10 +107,8 @@ public class DialogCenter {
             for (int i = 0; i < modules.size(); i++) {
                 System.out.println("(" + (i + 1) + ") : " + modules.get(i).description);
             }
-            try {
-                do {
-                    line = br.readLine();
-                } while (line == null || line.isBlank());
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(System.in))){
+                line = getInput();
                 if (!line.isBlank()) {
                     options = line.split(",");
                     for (String opt : options) {
@@ -107,54 +116,85 @@ public class DialogCenter {
                             if (!opt.isBlank()) {
                                 int x = Integer.parseInt(opt.trim());
                                 if (x <= 0 || x > modules.size())
-                                    throw new WrongInputException("Incorrect option number.\n Please re-type all your options.");
-                                if (!activeModules.contains(modules.get(x))) {
-                                    activeModules.add(modules.get(x));
+                                    throw new WrongInputException("Incorrect option number.\nPlease re-type all your options.");
+                                if (!activeModules.contains(modules.get(x - 1))) {
+                                    activeModules.add(modules.get(x - 1));
                                 }
                                 repCond = false;
                             }
                         } catch (NumberFormatException e) {
-                            System.out.println("An error has occured.\n" +
-                                    "You typed another character with the number.\n" +
-                                    "Please re-type all your options.\n" +
-                                    "Be sure you choose only correct options {1, 2, 3, 4} and separate them with commas.");
-                            repCond = true;
-                        } catch (WrongInputException ex) {
-                            System.out.println("Be sure you choose only correct options {1, 2, 3, 4} and separate them with commas.");
-                            repCond = true;
+                            System.out.println("An error has occured. You typed another character with the number.\nPlease re-type all your options.");
+                            throw new WrongInputException();
                         }
                     }
                 }
             }
-            catch (IOException ignored) { }
+            catch (IOException | WrongInputException e) {
+                System.out.println("Be sure you choose only correct options " + enumerateModules(modules) + " and separate them with commas.");
+                repCond = true;
+            }
         } while(repCond);
+
+        return activeModules;
     }
 
-    /*
+    /**
+     * Only iterates through the list of modules to indicate the correct values to the user.
+     * @param modules = The list of available modules
+     * @return = Returns a string of all active modules in format "{ 1, 2, ..., "the number of last module" }"
+     */
+    @NotNull
+    private static String enumerateModules(@NotNull List<Module> modules) {
+        StringBuilder result = new StringBuilder("{ ");
+        for(int i = 1; i < modules.size(); i++) {
+            result.append(i).append(", ");
+        }
+        result.append(modules.size()).append(" }");
 
-     prompt to invoke //remove(new File("C:\\Users\\vikto\\Downloads\\airports1.csv"));
+        return result.toString();
+    }
 
-    public static void remove(File file) {
-        File outputFile = new File("C:\\Users\\vikto\\Downloads\\airports2.csv");
-        try {
-            if (outputFile.createNewFile()) {
-                try (InputStreamReader is = new InputStreamReader(new FileInputStream(file));
-                     BufferedReader br = new BufferedReader(is);
-                     OutputStreamWriter wr = new OutputStreamWriter(new FileOutputStream(outputFile))) {
-                    String line;
-                    int lineNumber = 0;
+    /**
+     * This method goes through all of the modules and eliminates any incompatible types, such as
+     * performs exit procedure if the user wants to exit the Flight Planner or removes all modules if
+     * these are included in a more complex module.
+     * @param active = The raw list of modules which have been activated. However, these need to be corrected for incompatible types.
+     */
+    private static void checkActiveModules(@NotNull ArrayList<Module> active) {
+        ArrayList<Module> toRemove = new ArrayList<>();
+        if (active.stream().anyMatch(x -> x.getClass().getName().contains("ExitFlightPlannerModule"))) {
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            try {
+                System.out.print("Are you sure to exit the planner?\nConfirm by typing \"y\": ");
+                String confirm = br.readLine();
+                if (confirm.toLowerCase().startsWith("y")) {
+                    System.out.println("Goodbye. See you next time in Flight Planner.");
+                    Thread.sleep(500);
+                    System.exit(10);
+                } else {
+                    active.stream().filter(x -> x.getClass().getName().contains("Exit")).forEach(toRemove::add);
+                    active.removeAll(toRemove);
+                    toRemove.clear();
+                    System.out.print("\n");
+                }
+            } catch (InterruptedException | IOException ignored) { }
+        }
+        if (active.stream().anyMatch(x -> (x.processNum == 1 || x.processNum == 2)) && (active.stream().anyMatch(x -> x.processNum == 3))) {
+            System.out.println("The most complex operation you want to perform is flight plan creation.\nTherefore, these operations will be suspended: ");
+            active.stream().filter(x -> (x.processNum == 1 || x.processNum == 2)).forEach(x -> { toRemove.add(x);
+                System.out.println("(" + x.processNum + ") : " + x.description);});
+            active.removeAll(toRemove);
+            toRemove.clear();
+        }
 
-                    while ((line = br.readLine()) != null) {
-                        ++lineNumber;
-                        String[] fields = line.split(",", 0);
-                        System.out.println("Printing line: " + lineNumber);
-                        for (String field : fields) {
-                            wr.append(field).append(",");
-                        }
-                        wr.append("\n");
-                    }
-                } catch (IOException ignored) { }
-            }
-        } catch (IOException ignored) { }
-    }*/
+        System.out.println("The list of operations which will be performed: ");
+        for (Module mod : active) {
+            System.out.println("(" + mod.processNum + ") : " + mod.description);
+        }
+        System.out.print("\n");
+
+        //return active;
+    }
+
+
 }

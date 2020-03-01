@@ -1,4 +1,4 @@
-package cz.cuni.mff.java.flighplanner;
+package cz.cuni.mff.java.flightplanner;
 
 /**
  * APTCategory enum class only classifies the size of the airport.

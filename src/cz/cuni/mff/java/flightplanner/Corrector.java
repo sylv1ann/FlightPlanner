@@ -1,4 +1,4 @@
-package cz.cuni.mff.java.flighplanner;
+package cz.cuni.mff.java.flightplanner;
 
 @FunctionalInterface
 public interface Corrector {

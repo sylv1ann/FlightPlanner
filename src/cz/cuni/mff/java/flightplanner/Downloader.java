@@ -1,4 +1,4 @@
-package cz.cuni.mff.java.flighplanner;
+package cz.cuni.mff.java.flightplanner;
 
 import org.jetbrains.annotations.*;
 import java.net.*;
@@ -146,7 +146,7 @@ public class Downloader {
      * @return = Returns new file with path to current directory and fileName.
      */
     @NotNull
-    public static File filePathCreator(@NotNull String fileName) {
+    public static File fileFromPathCreator(@NotNull String fileName) {
         File currentDir = new File("");
         String part = currentDir.getAbsolutePath() + File.separator + fileName;
         return new File(part);
