@@ -10,6 +10,7 @@ abstract class Module {
 
     protected String name;
     protected String description;
+    protected String keyword;
     protected OutputStream outStream;
     protected Integer processNum;
     protected File targetFile;
@@ -101,7 +102,7 @@ abstract class Module {
         return modules;
     }
 
-    public static void processModules(@NotNull List<Module> active) {
+    public static void startModules(@NotNull List<Module> active) {
         for(Module mod : active) {
             mod.action();
         }
@@ -116,56 +117,17 @@ class GetWeatherInfoModule extends Module {
         this.name = "GetWeatherInfoModule";
         this.outStream = System.out;
         this.description = "Write information about the weather at chosen airports.";
+        this.keyword = "weather";
         this.processNum = 1;
     }
 
     @Override
     void action() {
         this.outStream = DialogCenter.chooseOutputForm();
+        DialogCenter.enterAirports(null); //vloží letiská na ktorých by chcel získať počasie
+        // TODO: 06/03/2020 na ziskaných letiskách potom zavolám Downloader a už začnem samotné sťahovanie dát a následne parsovanie
     }
 
-    /*
-    @Override
-    String getName() {
-        return this.name;
-    }
-
-    @Override
-    void setName(String newName) {
-        this.name = newName;
-    }
-
-    @Override
-    String getDescription() {
-        return this.description;
-    }
-
-    @Override
-    void setDescription(String newDescription) {
-        this.description = newDescription;
-    }
-
-    @Override
-    OutputStream getOs() {
-        return this.outStream;
-    }
-
-    @Override
-    void setOs(OutputStream newOutputStream) {
-        this.outStream = newOutputStream;
-    }
-
-    @Override
-    File getTargetFile() {
-        return this.targetFile;
-    }
-
-    @Override
-    void setTargetFile(File newFile) {
-        this.targetFile = newFile;
-    }
-
-    */
 }
 
 class GetAirportInfoModule extends Module {
@@ -175,12 +137,14 @@ class GetAirportInfoModule extends Module {
         this.name = "GetAirportInfoModule";
         this.outStream = System.out;
         this.description = "Write information about chosen airports.";
+        this.keyword = "airport";
         this.processNum = 2;
     }
 
     @Override
     void action() {
         this.outStream = DialogCenter.chooseOutputForm();
+        Airport.searchAirports(null, false);
     }
 }
 
@@ -191,6 +155,7 @@ class CreateFlightPlanModule extends Module {
         this.name = "CreateFlightPlanModule";
         this.outStream = System.out;
         this.description = "Complete flight plan creation.";
+        this.keyword = "flight plan";
         this.processNum = 3;
     }
 
@@ -207,6 +172,7 @@ class ExitFlightPlannerModule extends Module {
         this.name = "ExitFlightPlannerModule";
         this.outStream = System.out;
         this.description = "Exit the Flight Planner.";
+        this.keyword = "exit";
         this.processNum = 4;
     }
 
