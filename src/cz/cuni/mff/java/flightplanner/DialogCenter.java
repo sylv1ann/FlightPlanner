@@ -1,6 +1,7 @@
 package cz.cuni.mff.java.flightplanner;
 
 import org.jetbrains.annotations.*;
+
 import java.io.*;
 import java.util.*;
 import java.util.stream.Stream;
@@ -8,15 +9,21 @@ import java.util.stream.Stream;
 public class DialogCenter {
 
     public static void main(String[] args) {
-        ArrayList<Module> modules, activeModules;
+
+        //Airport.setAirportsDatabase();
+        //Airport.showAirportsList(null, "");
+        //Airport.searchAirports(Airport.getAptDatabase(), false);
+
+        /*ArrayList<Module> modules, activeModules;
 
         modules = Module.setAllModules(DialogCenter.class.getPackageName());
+        Airport.setAirportsDatabase();
         showMainMenu();
         activeModules = chooseModules(modules);
         if (activeModules.size() > 0) {
             checkActiveModules(activeModules);
-            Module.processModules(activeModules);
-        }
+            Module.startModules(activeModules);
+        }*/
     }
 
     public static OutputStream chooseOutputForm() {
@@ -34,6 +41,8 @@ public class DialogCenter {
                 result = setOutputStream();
                 break;
         }
+
+        System.out.print("\n");
         return result;
     }
 
@@ -121,8 +130,8 @@ public class DialogCenter {
                             repCond = false;
 
                         } catch (NumberFormatException e) {
-                            Stream<Module> mods;            //this block of code ensures that the program won't fail in case the user types in the part of a module's description.
-                            mods = modules.stream().filter(x -> x.description.toLowerCase().contains(opt.toLowerCase()));
+                            Stream<Module> mods;            //this block of code ensures that the program won't fail in case the user types in the part of a module's keyword.
+                            mods = modules.stream().filter(x -> x.keyword.toLowerCase().contains(opt.toLowerCase()));
                             if (mods.count() == 1) {
                                 mods.forEach(activeModules::add); //however, the module has to be unambiguous
                             } else {
@@ -143,6 +152,7 @@ public class DialogCenter {
 
     /**
      * Only iterates through the list of modules to indicate the correct values to the user.
+     *
      * @param modules = The list of available modules
      * @return = Returns a string of all active modules in format "{ 1, 2, ..., "the number of last module" }"
      */
@@ -181,11 +191,12 @@ public class DialogCenter {
                     toRemove.clear();
                     System.out.print("\n");
                 }
-            } catch (InterruptedException | IOException ignored) { }
+            } catch (InterruptedException | IOException ignored) {
+            }
         }
 
         if ((active.stream().anyMatch(x -> x.processNum == 3)) &&
-             active.stream().anyMatch(x -> (x.processNum == 1 || x.processNum == 2))) {
+                active.stream().anyMatch(x -> (x.processNum == 1 || x.processNum == 2))) {
             System.out.println("The most complex operation you want to perform is flight plan creation.\nTherefore, these operations will be suspended: ");
             active.stream().filter(x -> (x.processNum == 1 || x.processNum == 2)).forEach(x -> {
                 toRemove.add(x);
@@ -202,5 +213,23 @@ public class DialogCenter {
         System.out.print("\n");
     }
 
+    public static List<String> enterAirports(String initMsg) {
+        List<String> result = new LinkedList<>();
+        String[] fields;
 
+        if (initMsg != null) {
+            System.out.println(initMsg);
+        }
+        do {
+            System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
+            fields = getInput().split("[^A-Za-z]+");
+            result.addAll(Arrays.asList(fields));
+        } while (getResponse("Do you wish to enter more airports? (Y/n): ", "Y"));
+        return result;
+    }
+
+    public static boolean getResponse(String message, String trueResponse) {
+        System.out.print(message);
+        return getInput().trim().startsWith(trueResponse);
+    }
 }
