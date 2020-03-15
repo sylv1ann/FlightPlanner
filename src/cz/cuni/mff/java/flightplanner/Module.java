@@ -123,7 +123,7 @@ class GetWeatherInfoModule extends Module {
 
     @Override
     void action() {
-        this.outStream = DialogCenter.chooseOutputForm();
+        this.outStream = DialogCenter.chooseOutputForm("",true, ""); // TODO: 15/03/2020 remember to check method arguments
         DialogCenter.enterAirports(null); //vloží letiská na ktorých by chcel získať počasie
         // TODO: 06/03/2020 na ziskaných letiskách potom zavolám Downloader a už začnem samotné sťahovanie dát a následne parsovanie
     }
@@ -143,8 +143,36 @@ class GetAirportInfoModule extends Module {
 
     @Override
     void action() {
-        this.outStream = DialogCenter.chooseOutputForm();
-        Airport.searchAirports(null, false);
+        boolean auto = DialogCenter.getResponse("Do you want the output to be managed automatically? (Y/n): ", "Y");
+        PrintStream pr;
+        LinkedList<Airport> found = Airport.searchAirports(null, false);
+        this.outStream = null;
+        if (auto) this.outStream = DialogCenter.chooseOutputForm("",false, null);
+        for (Airport apt : found) {
+            if (!auto) this.outStream = DialogCenter.chooseOutputForm(" for " + apt.icaoCode + " airport",true,apt.icaoCode);
+            else {
+                if (outStream instanceof FileOutputStream) this.outStream = DialogCenter.setFileOutputStream(false,apt.icaoCode);
+            }
+            String appendChar = "";
+            pr = new PrintStream(outStream);
+            pr.println("------------ Information about " + apt.icaoCode + " airport. ------------");
+            pr.println("The ICAO (International civil aviation organization) code of this airport is: " + apt.icaoCode);
+            pr.println("The " + apt.aptName + " airport is situated in: " + apt.municipality + ", " + apt.countryCode);
+            pr.println("It is a " + apt.cat.name().replace("_", " size "));
+            pr.printf("The coordinates of %s are: %.4f, %.4f and its elevation is: %.0f feet. (%.1f meters)\n", apt.aptName, apt.geoLat, apt.geoLong, apt.elevation, Airport.ftTomConverter(apt.elevation));
+            if (apt.runways.length > 1) appendChar = "s";
+            pr.println("This airport has " + apt.runways.length + " runway" + appendChar +":");
+            for (String rwy : apt.runways) {
+                String[] fields = rwy.split(",", -1);
+                pr.println("Runway identification is: " + fields[5] + "/" + fields[11]);
+                pr.printf("It's length is: %s feet (%.1f meters) and width: %s feet (%.1f meters).\n", fields[0], Airport.ftTomConverter(Double.parseDouble(fields[0])), fields[1], Airport.ftTomConverter(Double.parseDouble(fields[1])));
+            }
+            pr.println("------------ End of information about " + apt.icaoCode + " airport.------------\n");
+            if (outStream instanceof FileOutputStream) {
+                pr = System.out;
+                pr.println("Information about " + apt.icaoCode + " airport has been successfully written to the file.");
+            }
+        }
     }
 }
 
@@ -161,7 +189,7 @@ class CreateFlightPlanModule extends Module {
 
     @Override
     void action() {   
-        this.outStream = DialogCenter.chooseOutputForm();
+        this.outStream = DialogCenter.chooseOutputForm("",true, ""); // TODO: 15/03/2020 remember to check method arguments
     }
 }
 
