@@ -1,20 +1,20 @@
 package cz.cuni.mff.java.flightplanner;
 
 import org.jetbrains.annotations.*;
-
 import java.io.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Stream;
+import java.util.stream.*;
 
 public class DialogCenter {
 
     public static void main(String[] args) {
 
         //Airport.setAirportsDatabase();
-        //Airport.showAirportsList(null, "");
-        //Airport.searchAirports(Airport.getAptDatabase(), false);
+        //Airport.showAirportsList(null, "", false);
+        //Airport.searchAirports(null, false);
 
-        /*ArrayList<Module> modules, activeModules;
+        ArrayList<Module> modules, activeModules;
 
         modules = Module.setAllModules(DialogCenter.class.getPackageName());
         Airport.setAirportsDatabase();
@@ -23,22 +23,22 @@ public class DialogCenter {
         if (activeModules.size() > 0) {
             checkActiveModules(activeModules);
             Module.startModules(activeModules);
-        }*/
+        }
     }
 
-    public static OutputStream chooseOutputForm() {
-        OutputStream result = System.out;
+    public static OutputStream chooseOutputForm(String arg, boolean prompt, String fileName) {
+        OutputStream result;
 
-        System.out.println("You can choose whether your output will be shown on screen or written into separate file/files.");
-        System.out.print("Please type your choice (screen / file / default): ");
+        System.out.print("Please type your choice of output form (screen / file / default)" + arg + ": ");
 
         switch (getInput()) {
             default:
             case "default":
             case "screen":
+                result = System.out;
                 break;
             case "file":
-                result = setOutputStream();
+                result = setFileOutputStream(prompt,fileName);
                 break;
         }
 
@@ -46,31 +46,29 @@ public class DialogCenter {
         return result;
     }
 
-    private static OutputStream setOutputStream() {
-        OutputStream result;
-        System.out.print("Please enter your desired file name: ");
-        String fileName = getInput();
-        if (!fileName.contains(".txt")) {
-            fileName = fileName + ".txt";
-        }
-        System.out.println("Do you want to choose the directory for your new file? (y/n)\nIf not, current directory will be used.");
+    public static OutputStream setFileOutputStream(boolean prompt, String fileName) {
+        OutputStream result = System.out;
         String filePath;
-        if (getInput().toLowerCase().startsWith("y")) {
+
+        if (prompt && getResponse("Do you want to choose the directory for your new file? (Y/n)\nIf not, current directory will be used.", "Y")) {
             System.out.print("Please enter the absolute path of the destination directory: ");
             filePath = getInput();
-        } else {
-            filePath = ".";
-        }
+        } else filePath = ".";
+
+        String completeFileName = "";
+        if (fileName != null) completeFileName = fileName + "_" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()) + ".txt";
+
         try {
             if (".".equals(filePath))
-                result = new FileOutputStream(Downloader.fileFromPathCreator(fileName));
+                if (fileName == null) result = new FileOutputStream(File.createTempFile("tmp",null,null));
+                else result = new FileOutputStream(Downloader.fileFromPathCreator(completeFileName));
             else {
-                result = new FileOutputStream(new File(filePath + File.pathSeparator + fileName));
+                result = new FileOutputStream(new File(filePath + File.separator + completeFileName));
             }
         } catch (FileNotFoundException e) {
             System.out.println("Something went wrong. Please try again.");
-            result = setOutputStream();
-        }
+            result = setFileOutputStream(prompt,fileName);
+        } catch (IOException ignored) { }
 
         return result;
     }
@@ -213,6 +211,7 @@ public class DialogCenter {
         System.out.print("\n");
     }
 
+    @NotNull
     public static List<String> enterAirports(String initMsg) {
         List<String> result = new LinkedList<>();
         String[] fields;
