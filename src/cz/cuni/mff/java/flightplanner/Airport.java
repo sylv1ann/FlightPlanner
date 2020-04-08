@@ -103,7 +103,7 @@ public class Airport {
             switch (matchedApts.size()) {
                 case 0:
                     System.out.println("Error, no airport matched \"" + apt + "\" entry.");
-                    if (DialogCenter.getResponse(null,"Do you wish to retype this entry? (Y/n): ", "Y")) {
+                    if (DialogCenter.getResponse(null,"Do you wish to retype this entry? (Y/n): ", "Y", false)) {
                         if ((intermediateResult = searchAirports(allApts, true)).size() == 1) {
                             result.addAll(intermediateResult);
                         }
@@ -116,7 +116,7 @@ public class Airport {
                     System.out.println("\nThere were multiple matches for entry: \"" + apt + "\".");
                     if (DialogCenter.getResponse("Do you wish to precise more this entry? ",
                                                  "You will be only able to search among the airports that matched \"" + apt + "\". (Y/n): ",
-                                                 "Y")) {
+                                                 "Y", false)) {
                         System.out.println("\nEnter 4-letter ICAO code for best precision.");
                         intermediateResult = searchAirports(matchedApts, true);
                         result.addAll(intermediateResult);
@@ -146,7 +146,7 @@ public class Airport {
         if (aptsToShow == null) aptsToShow = getAptDatabase();
 
         if (autoProceed ||
-            DialogCenter.getResponse(null,"Do you want to show all " + aptsToShow.size() + " entries? (Y/n): ", "Y")) {
+            DialogCenter.getResponse(null,"Do you want to show all " + aptsToShow.size() + " entries? (Y/n): ", "Y", true)) {
             StringBuilder sb = new StringBuilder();
             for (Airport apt : aptsToShow) {
                 for (Field fld  : Airport.class.getFields()) {

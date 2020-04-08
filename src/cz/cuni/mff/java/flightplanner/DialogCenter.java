@@ -13,6 +13,8 @@ import java.util.stream.*;
  */
 public class DialogCenter {
 
+    private static final String projectPackageName = "cz.cuni.mff.java.flightplanner";
+
     /**
      * The default value of filePath which indicates the current directory.
      */
@@ -20,19 +22,15 @@ public class DialogCenter {
 
     public static void main(String[] args) {
 
-        //Airport.setAirportsDatabase();
-        //Airport.showAirportsList(null, "", false);
-        //Airport.searchAirports(null, false);
+        List<Plugin> allPlugs, activePlugs;
 
-        ArrayList<Module> modules, activeModules;
-
-        modules = Module.setAllModules(DialogCenter.class.getPackageName());
+        allPlugs = Plugin.loadAllPlugins(projectPackageName);
         Airport.setAirportsDatabase();
         showMainMenu();
-        activeModules = chooseModules(modules);
-        if (activeModules.size() > 0) {
-            checkActiveModules(activeModules);
-            Module.startModules(activeModules);
+        activePlugs = chooseModules(allPlugs);
+        if (activePlugs.size() > 0) {
+            checkActivePlugins(activePlugs);
+            Plugin.startPlugins(activePlugs);
         }
     }
 
@@ -57,7 +55,7 @@ public class DialogCenter {
 
         System.out.print("\nPlease type your choice of output form (screen / file / default)" + arg + ": ");
 
-        switch (getInput()) {
+        switch (getInput(false)) {
             default:
             case "default":
             case "screen":
@@ -97,9 +95,9 @@ public class DialogCenter {
 
         if (prompt && getResponse("If you want to choose the location for the file, please type \"Y\".",
                                   "If not, type anything else and  " + dirSetting + " directory will be used.",
-                                  "Y")) {
+                                  "Y", false)) {
             System.out.print("Please enter the absolute path of the destination directory: ");
-            filePath = getInput();
+            filePath = getInput(false);
         }
 
         String completeFileName = "";
@@ -133,60 +131,63 @@ public class DialogCenter {
      *
      * @return Non-null and non-empty {@code String} input given by a user.
      */
-    public static @NotNull String getInput() {
+    public static @NotNull String getInput(boolean blankLineAllowed) {
         String line;
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         try {
             do {
                 line = br.readLine();
-            } while (line == null || line.isBlank());
+            } while (line == null || (!blankLineAllowed && line.isBlank()));
         } catch (IOException e) {
             System.out.println("Something went wrong. Please try again.");
-            line = getInput();
+            line = getInput(blankLineAllowed);
         }
 
         return line;
     }
 
     /**
-     * Invokes an interactive mode which makes user choose from available methods.
+     * Launches an interactive mode which makes user choose from available methods.
      *
-     * @param modules The list of all available modules.
+     * @param modes The list of all available modules.
      *
      * @return Returns the list of the modules chosen by the user.
      */
-    private static @NotNull ArrayList<Module> chooseModules(@NotNull List<Module> modules) {
-        ArrayList<Module> activeModules = new ArrayList<>();
+    private static @NotNull ArrayList<Plugin> chooseModules(@NotNull List<Plugin> modes) {
+        ArrayList<Plugin> activePlugins = new ArrayList<>();
         String line;
         String[] options;
-        boolean repCond;
+        boolean repCond; //true, when choosing methods must be repeated, false if correct choice
         do {
             repCond = true;
-            for (int i = 0; i < modules.size(); i++) {
-                System.out.println("(" + (i + 1) + ") : " + modules.get(i).description);
+            for (int i = 0; i < modes.size(); i++) {
+                System.out.println("(" + (i + 1) + ") : " + modes.get(i).description());
             }
-            System.out.print("Please type in all the numbers of options you want to choose (separate the numbers with commas): ");
+            System.out.print("Please type in all the numbers of options you want to choose (separate them with commas): ");
             try {
-                line = getInput();
+                line = getInput(false);
                 System.out.print("\n"); //separates the dialog
                 if (!line.isBlank()) {
                     options = line.split(",");
-                    options = Arrays.stream(options).filter(x -> !x.isBlank()).toArray(String[]::new);
+                    options = Arrays.stream(options)
+                                    .filter(x -> !x.isBlank())
+                                    .toArray(String[]::new); //removes empty fields of array
                     for (String opt : options) {
                         try {
                             int x = Integer.parseInt(opt.trim());
-                            if (x <= 0 || x > modules.size())
+                            if (x <= 0 || x > modes.size())
                                 throw new WrongInputException("Incorrect option number.\nPlease re-type all your options.");
-                            if (!activeModules.contains(modules.get(x - 1))) {
-                                activeModules.add(modules.get(x - 1));
+                            if (!activePlugins.contains(modes.get(x - 1))) {
+                                activePlugins.add(modes.get(x - 1));
                             }
                             repCond = false;
 
                         } catch (NumberFormatException e) {
-                            Stream<Module> mods;            //this block of code ensures that the program won't fail in case the user types in the part of a module's keyword.
-                            mods = modules.stream().filter(x -> x.keyword.toLowerCase().contains(opt.toLowerCase()));
+                            Stream<Plugin> mods;            //this block of code ensures that the program won't fail in case the user writes the part of a plugin's keyword.
+                            mods = modes.stream()
+                                          .filter(x -> x.keyword().toLowerCase().contains(opt.toLowerCase()));
                             if (mods.count() == 1) {
-                                mods.forEach(activeModules::add); //however, the module has to be unambiguous
+                                mods.forEach(activePlugins::add); //however, the plugin has to be unambiguous
                             } else {
                                 System.out.println("An error has occurred. You typed another character with the number.\nPlease re-type all your options.");
                                 throw new WrongInputException();
@@ -195,29 +196,31 @@ public class DialogCenter {
                     }
                 }
             } catch (WrongInputException e) {
-                System.out.println("Be sure you choose only correct options " + enumerateModules(modules) + " and separate them with commas.");
+                System.out.printf("Be sure you choose only correct options %s and separate them with commas.%n", listAllPlugins(modes));
                 repCond = true;
             }
         } while (repCond);
 
-        return activeModules;
+        return activePlugins;
     }
 
     /**
      * Iterates through the list of modules to indicate the correct values to the
      * user.
      *
-     * @param modules The list of available modules
+     * @param plugins The list of available modules
      *
-     * @return Returns a string of all active modules in format "{ 1, 2, ... }
-     *         "the number of last module" }"
+     * @return Returns a string of all active plugins in format "{ 1, 2, ... }
+     *         "the number of last plugin" }"
      */
-    private static @NotNull String enumerateModules(@NotNull List<Module> modules) {
+    private static @NotNull String listAllPlugins(@NotNull List<Plugin> plugins) {
         StringBuilder result = new StringBuilder("{ ");
-        for (int i = 1; i < modules.size(); i++) {
-            result.append(i).append(", ");
+        for (int i = 1; i < plugins.size(); i++) {
+            result.append(i)
+                  .append(", ");
         }
-        result.append(modules.size()).append(" }");
+        result.append(plugins.size())
+              .append(" }");
 
         return result.toString();
     }
@@ -225,46 +228,48 @@ public class DialogCenter {
     /**
      * This method goes through all of the modules and eliminates any incompatible
      * types, such as performs exit procedure if the user wants to exit the Flight
-     * Planner or removes all modules if these are included in a more complex module.
+     * Planner or removes all modules if these are included in a more complex plugin.
      *
      * @param active The raw list of modules which have been activated. However,
      *               these need to be corrected for incompatible types.
      */
-    private static void checkActiveModules(@NotNull ArrayList<Module> active) {
-        ArrayList<Module> toRemove = new ArrayList<>();
-        if (active.stream().anyMatch(x -> x.getClass().getName().contains("ExitFlightPlannerModule"))) {
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    private static void checkActivePlugins(@NotNull List<Plugin> active) {
+        ArrayList<Plugin> toRemove = new ArrayList<>();
+        if (active.stream()
+                  .anyMatch(x -> x.getClass().getName().contains("ExitFlightPlannerModule"))) {
+
             try {
-                System.out.print("Are you sure to exit the planner?\nConfirm by typing \"y\": ");
-                String confirm = br.readLine();
-                if (confirm.toLowerCase().startsWith("y")) {
+                if (getResponse(null, "Are you sure to exit the planner? (Y/n): ", "Y", true)) {
                     System.out.println("Goodbye. See you next time in Flight Planner.");
                     Thread.sleep(500);
-                    System.exit(10);
+                    System.exit(0);
                 } else {
-                    active.stream().filter(x -> x.getClass().getName().contains("Exit")).forEach(toRemove::add);
-                    active.removeAll(toRemove);
-                    toRemove.clear();
+                    active.removeIf(x -> x.getClass().getName().contains("ExitFlightPlanner"));
                     System.out.print("\n");
                 }
-            } catch (InterruptedException | IOException ignored) {
+            } catch (InterruptedException ignored) {
             }
         }
 
-        if ((active.stream().anyMatch(x -> x.processNum == 3)) &&
-                active.stream().anyMatch(x -> (x.processNum == 1 || x.processNum == 2))) {
+        if ((active.stream()
+                   .anyMatch(x -> x.pluginID() == 3)
+            ) &&
+             active.stream()
+                   .anyMatch(x -> (x.pluginID() == 1 || x.pluginID() == 2))) {
             System.out.println("The most complex operation you want to perform is flight plan creation.\nTherefore, these operations will be suspended: ");
-            active.stream().filter(x -> (x.processNum == 1 || x.processNum == 2)).forEach(x -> {
-                toRemove.add(x);
-                System.out.println("(" + x.processNum + ") : " + x.description);
-            });
+            active.stream()
+                  .filter(x -> (x.pluginID() == 1 || x.pluginID() == 2))
+                  .forEach(x -> {
+                      toRemove.add(x);
+                      System.out.println("(" + x.pluginID() + ") : " + x.description());
+                  });
             active.removeAll(toRemove);
             toRemove.clear();
         }
 
         System.out.println("The list of operations which will be performed: ");
-        for (Module mod : active) {
-            System.out.println("(" + mod.processNum + ") : " + mod.description);
+        for (Plugin mod : active) {
+            System.out.println("(" + mod.pluginID() + ") : " + mod.description());
         }
         System.out.print("\n");
     }
@@ -290,9 +295,9 @@ public class DialogCenter {
         }
         do {
             System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
-            fields = getInput().split("[^A-Za-z]+");
+            fields = getInput(false).split("[^A-Za-z]+");
             result.addAll(Arrays.asList(fields));
-        } while (getResponse(null,"Do you wish to enter more airports? (Y/n): ", "Y"));
+        } while (getResponse(null,"Do you wish to enter more airports? (Y/n): ", "Y", true));
         return result;
     }
 
@@ -311,9 +316,12 @@ public class DialogCenter {
      * @return {@code True}, if the beginnings of both user answer and response
      *         expected in {@code trueResponse} parameter are equal.
      */
-    public static boolean getResponse(@Nullable String message, @NotNull String question, @NotNull String trueResponse) {
+    public static boolean getResponse(@Nullable String message, @NotNull String question, @NotNull String trueResponse, boolean blankAllowed) {
         if (message != null) System.out.println(message);
-        System.out.print(question);
-        return getInput().trim().startsWith(trueResponse);
+        String autoDecline = "";
+        if (blankAllowed )
+            autoDecline = "Enter key press will decline automatically. ";
+        System.out.print(autoDecline + question );
+        return getInput(blankAllowed).trim().startsWith(trueResponse);
     }
 }
