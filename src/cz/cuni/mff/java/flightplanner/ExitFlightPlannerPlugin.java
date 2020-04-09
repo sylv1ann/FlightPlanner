@@ -3,7 +3,7 @@ package cz.cuni.mff.java.flightplanner;
 public class ExitFlightPlannerPlugin implements Plugin{
 
     @Override
-    public String name() { return "ExitFlightPlannerModule"; }
+    public String name() { return this.getClass().getName(); }
 
     @Override
     public String description() { return "Exit the Flight Planner."; }
