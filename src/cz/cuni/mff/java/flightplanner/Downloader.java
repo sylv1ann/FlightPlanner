@@ -1,6 +1,7 @@
 package cz.cuni.mff.java.flightplanner;
 
 import org.jetbrains.annotations.*;
+
 import java.net.*;
 import java.util.*;
 import java.io.*;
@@ -8,72 +9,79 @@ import java.time.*;
 
 public class Downloader {
 
-    private ArrayList<String> airfieldsToDownload = new ArrayList<>();
+    private List<String> airfieldsToDownload = new ArrayList<>();
+
+    public static void parseTimeAndDate(String timeAndDate) {
+
+    }
 
     /**
      * This method iterates through every given airport and downloads its METAR
      * weather information.
      *
-     * @param timeFrom Describes the timestamp from when the data will be fetched.
-     *                If null, then corresponds to the current time in UTC minus one day.
+     * @param timeFrom      Describes the timestamp from when the data will be
+     *                      fetched. If null, then corresponds to the current time
+     *                      in UTC minus one day.
      *
-     * @param timeTo Describes the timestamp until when the data will be fetched.
-     *              If null, then corresponds to the current time in UTC.
+     * @param timeTo        Describes the timestamp until when the data will be
+     *                      fetched. If null, then corresponds to the current time
+     *                      in UTC.
      *
-     * @param aptsToDwnLd The array of all the airfields, from which the METAR data
-     *                 will be gathered.
+     * @param airportTarget The airfield for which the METAR data will be gathered.
+     *
+     * @return Returns the file which contains the METAR weather information for
+     *         selected airport, date and time if available. Returns null, if an
+     *         error occurs.
      */
-    public static @NotNull ArrayList<File> downloadMETAR(LocalDateTime timeFrom, LocalDateTime timeTo, @NotNull List<Airport> aptsToDwnLd) {
-        ArrayList<File> filesToParse = new ArrayList<>();
+    public static @Nullable File downloadMETAR(LocalDateTime timeFrom, LocalDateTime timeTo, @NotNull Airport airportTarget) {
 
-        if (timeTo == null) timeTo = LocalDateTime.now(ZoneOffset.UTC);
+        if (timeTo == null)
+            timeTo = LocalDateTime.now(ZoneOffset.UTC);                   //current time
         if (timeFrom == null || timeFrom.isAfter(timeTo)) {
-            timeFrom = timeTo.minusDays(1);
+            timeFrom = timeTo.minusDays(1);                                     //the same time yesterday
         }
 
-        // TODO: 26/03/2020 metoda ktorá volá túto musí overiť že aptsToDwnLd !!NAOZAJ!! obsahuje všetky letiská z databazy/pridať len letiska v databaze
+        // TODO: change the LocaleDateTime parameters to strings and instead check the correctness of a date? či?
+        URL page = buildMETARURL(timeFrom.toString(), timeTo.toString(), airportTarget.icaoCode);
+        if (page != null) {
+            try {
+                String line;
+                boolean websiteBody = false;//, debug = true;
+                File targetFile = File.createTempFile(airportTarget.icaoCode, ".txt", new File(".")); //creates temporary file in current directory with icao code prefix in its name
+                //if (!debug) targetFile.deleteOnExit(); //deletes created files after program ends
 
-        for (Airport airfield : aptsToDwnLd) {
+                try (BufferedWriter wr = new BufferedWriter(new FileWriter(targetFile));
+                     BufferedInputStream bis = new BufferedInputStream(page.openStream());
+                     BufferedReader br = new BufferedReader(new InputStreamReader(bis))) {
 
-            // TODO: change the LocaleDateTime parameters to strings and instead check the correctness of a date? či?
-            URL page = buildMETARURL(timeFrom.toString(), timeTo.toString(), airfield.icaoCode);
-            if (page != null) {
-                try {
-                    String line;
-                    boolean websiteBody = false;//, debug = true;
-                    File targetFile = File.createTempFile(airfield.icaoCode, ".txt", new File(".")); //creates temporary file in current directory with icao code prefix in its name
-                    //if (!debug) targetFile.deleteOnExit(); //deletes created files after program ends
+                    String finalAirfieldICAO = airportTarget.icaoCode;
+                    Thread t = new Thread(() -> System.out.println(finalAirfieldICAO.toUpperCase() + " METAR download in process"));
+                    t.start();                                          //Another thread informs the user about currently downloaded webpage.
 
-                    try (BufferedWriter wr = new BufferedWriter(new FileWriter(targetFile));
-                         BufferedInputStream bis = new BufferedInputStream(page.openStream());
-                         BufferedReader br = new BufferedReader(new InputStreamReader(bis))) {
-
-                        String finalAirfieldICAO = airfield.icaoCode;
-                        Thread t = new Thread(() -> System.out.println(finalAirfieldICAO.toUpperCase() + " METAR download in process"));
-                        t.start();                                          //Another thread informs user about currently downloaded webpage.
-
-                        while ((line = br.readLine()) != null) {            //while loop which ensures that only correct part of the website is
-                            if (!websiteBody && "<pre>".equals(line)) {     //written to the tmp file.
-                                websiteBody = true;
-                                continue;
-                            }
-                            if (websiteBody && "</pre>".equals(line)) {    //Skips the part before the <pre> tag and after the </pre> tag.
-                                websiteBody = false;
-                                continue;
-                            }
-                            if (websiteBody) {
-                                wr.append(line).append("\n");
-                            }
+                    while ((line = br.readLine()) != null) {            //while loop which ensures that only correct part of the website is
+                        if (!websiteBody && "<pre>".equals(line)) {     //written to the tmp file.
+                            websiteBody = true;
+                            continue;
                         }
-                        //when the download is finished, add the current document to the list to process.
-                        filesToParse.add(targetFile);
-                    } catch (IOException ignore) { System.out.println("An error occurred."); }
-                } catch (IOException ignored) { System.out.println("The file couldn't be created."); }
+                        if (websiteBody && "</pre>".equals(line)) {    //Skips the part before the <pre> tag and after the </pre> tag.
+                            websiteBody = false;
+                            continue;
+                        }
+                        if (websiteBody) {
+                            wr.append(line).append("\n");
+                        }
+                    }
+                    return targetFile;
+                } catch (IOException ignore) {
+                    System.out.println("An error occurred.");
+                }
+            } catch (IOException ignored) {
+                System.out.println("The file couldn't be created.");
             }
         }
-        return filesToParse;
-    }
 
+        return null;
+    }
 
     /*
     /**
@@ -103,55 +111,50 @@ public class Downloader {
         downloadMETAR(null, null,list.toArray(array));
     }*/
 
-    public static void downloadMETAR() {
-        //System.out.println("Please, enter the ICAO code or the city ");
-        // TODO: 01/03/2020 In the beginning of this method a method in DialogCenter should be invoked to make a interactive dialogue.
-    }
-
     /**
      * This method creates a URL by modifying current airport name and boundary
      * date and time of the website from which the data to parse will be downloaded.
      *
      * @param timeFrom Describes the time from when the data will be downloaded
      *                 in LocalDateTime format (YYYY-MM-DDTHH:MM:SS).
-     *
-     * @param timeTo Describes the time until which the data will be downloaded
-     *               in LocalDateTime format (YYYY-MM-DDTHH:MM:SS).
-     *
-     * @param icao The ICAO code for a given airport converted to lower case 4
-     *             letter code.
+     * @param timeTo   Describes the time until which the data will be downloaded
+     *                 in LocalDateTime format (YYYY-MM-DDTHH:MM:SS).
+     * @param icao     The ICAO code for a given airport converted to lower case 4
+     *                 letter code.
      */
     private static @Nullable URL buildMETARURL(@NotNull String timeFrom, @NotNull String timeTo, String icao) {
         icao = icao.toLowerCase();
         String yearFrom = timeFrom.substring(0, 4),
-               monthFrom = timeFrom.substring(5, 7),
-               dayFrom = timeFrom.substring(8, 10),
-               hourFrom = timeFrom.substring(11, 13),
-               minFrom = timeFrom.substring(14, 16);
+                monthFrom = timeFrom.substring(5, 7),
+                dayFrom = timeFrom.substring(8, 10),
+                hourFrom = timeFrom.substring(11, 13),
+                minFrom = timeFrom.substring(14, 16);
 
         String yearTo = timeTo.substring(0, 4),
-               monthTo = timeTo.substring(5, 7),
-               dayTo = timeTo.substring(8, 10),
-               hourTo = timeTo.substring(11, 13),
-               minTo = timeTo.substring(14, 16);
+                monthTo = timeTo.substring(5, 7),
+                dayTo = timeTo.substring(8, 10),
+                hourTo = timeTo.substring(11, 13),
+                minTo = timeTo.substring(14, 16);
 
         String sURL = "https://www.ogimet.com/display_metars2.php?lang=en&lugar=&tipo=ALL&ord=REV&nil=NO&fmt=txt&ano=&mes=&day=&hora=&min=&anof=&mesf=&dayf=&horaf=&minf=&send=send";
-        sURL = sURL.replaceFirst("lugar=", "lugar=" + icao).replaceFirst("ano=","ano=" + yearFrom).
-                    replaceFirst("mes=", "mes=" + monthFrom).replaceFirst("day=", "day=" + dayFrom).
-                    replaceFirst("hora=", "hora=" + hourFrom).replaceFirst("min=", "min=" + minFrom).
-                    replaceFirst("anof=", "anof=" + yearTo).replaceFirst("mesf=", "mesf=" + monthTo).
-                    replaceFirst("dayf=", "dayf=" + dayTo).replaceFirst("horaf=", "horaf=" + hourTo).
-                    replaceFirst("minf=", "minf=" + minTo);
+        sURL = sURL.replaceFirst("lugar=", "lugar=" + icao).replaceFirst("ano=", "ano=" + yearFrom).
+                replaceFirst("mes=", "mes=" + monthFrom).replaceFirst("day=", "day=" + dayFrom).
+                replaceFirst("hora=", "hora=" + hourFrom).replaceFirst("min=", "min=" + minFrom).
+                replaceFirst("anof=", "anof=" + yearTo).replaceFirst("mesf=", "mesf=" + monthTo).
+                replaceFirst("dayf=", "dayf=" + dayTo).replaceFirst("horaf=", "horaf=" + hourTo).
+                replaceFirst("minf=", "minf=" + minTo);
 
-        try { return new URL(sURL); }
-        catch (MalformedURLException e) { return null; }
+        try {
+            return new URL(sURL);
+        } catch (MalformedURLException e) {
+            return null;
+        }
     }
 
     /**
      * Creates an absolute path for the new file in the current directory.
      *
      * @param fileName = Name of the new file.
-     *
      * @return = Returns new file with path to current directory and fileName.
      */
     public static @NotNull File fileFromPathCreator(@NotNull String fileName) {
