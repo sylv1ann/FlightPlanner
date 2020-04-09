@@ -35,10 +35,18 @@ public class DialogCenter {
     }
 
     /**
-     * @param arg The argument to be added to the prompted message.
+     * This method prints initial text information about Flight Planner.
+     */
+    private static void showMainMenu() {
+        System.out.println("Welcome to this amazing Flight Planner.");
+        System.out.println("You will be provided with several possibilities to show/construct your entire flight plan or its parts.\n");
+    }
+
+    /**
+     * @param arg The optional argument to be printed with the prompted message.
      *
-     * @param prompt {@code Boolean} flag which indicates whether the user
-     *               interaction is required passed to
+     * @param prompt {@code Boolean} flag which indicates whether the user's
+     *               interaction is required in the
      *               DialogCenter.setFileOutputStream(boolean, String) method.
      *
      * @param fileName The name of a file used in case the output is to be
@@ -50,14 +58,13 @@ public class DialogCenter {
      *
      * @see #setFileOutputStream(boolean, String)
      */
-    public static OutputStream chooseOutputForm(String arg, boolean prompt, String fileName) {
+    public static OutputStream chooseOutputForm(@NotNull String arg, boolean prompt, @Nullable String fileName) {
         OutputStream result;
 
-        System.out.print("\nPlease type your choice of output form (screen / file / default)" + arg + ": ");
+        System.out.printf("%nPlease type your choice of output form (screen / file / default)%s: ", arg);
 
         switch (getInput(false)) {
-            default:
-            case "default":
+            default: //no break on purpose;
             case "screen":
                 result = System.out;
                 break;
@@ -66,7 +73,7 @@ public class DialogCenter {
                 break;
         }
 
-        System.out.print("\n");
+        System.out.printf("%n");
         return result;
     }
 
@@ -77,7 +84,7 @@ public class DialogCenter {
      * specified. The default value of output stream makes the output be printed
      * on {@code System.out}.
      *
-     * @param prompt {@code Boolean} flag which indicates whether the user
+     * @param prompt {@code Boolean} flag which indicates whether user's
      *               interaction is required.
      *
      * @param fileName The name of a file used in case the output is to be
@@ -119,15 +126,10 @@ public class DialogCenter {
     }
 
     /**
-     * This method prints initial text information about Flight Planner.
-     */
-    private static void showMainMenu() {
-        System.out.println("Welcome to this amazing Flight Planner.");
-        System.out.println("You will be provided with several possibilities to show/construct your entire flight plan or its parts.\n");
-    }
-
-    /**
      * The method gets the input typed-in by the user.
+     *
+     * @param blankLineAllowed Flag to indicate whether the empty line will be
+     *                         accepted as a correct input to be returned.
      *
      * @return Non-null and non-empty {@code String} input given by a user.
      */
@@ -272,33 +274,6 @@ public class DialogCenter {
             System.out.println("(" + mod.pluginID() + ") : " + mod.description());
         }
         System.out.print("\n");
-    }
-
-    /**
-     * The method prompts the user to enter all the airports to be searched for
-     * and creates a list of provided strings which are separated by any non-letter
-     * character.
-     *
-     * @param initMsg The message to be printed prior to the prompt. If null,
-     *                nothing is printed.
-     *
-     * @return Returns the {@code non-null} list of strings supposed to be airports'
-     *         ICAO codes, municipalities or airports names, which will be searched
-     *         for in the database.
-     */
-    public static @NotNull List<String> enterAirports(@Nullable String initMsg) {
-        List<String> result = new LinkedList<>();
-        String[] fields;
-
-        if (initMsg != null) {
-            System.out.println(initMsg);
-        }
-        do {
-            System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
-            fields = getInput(false).split("[^A-Za-z]+");
-            result.addAll(Arrays.asList(fields));
-        } while (getResponse(null,"Do you wish to enter more airports? (Y/n): ", "Y", true));
-        return result;
     }
 
     /**
