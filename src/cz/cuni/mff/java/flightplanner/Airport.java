@@ -13,20 +13,19 @@ public class Airport {
      * The database containing all the important information about airports from
      * the .csv source.
      */
-    private static final LinkedList<Airport> aptDatabase = new LinkedList<>();
+    private static final List<Airport> aptDatabase = new LinkedList<>();
     private static boolean aptDatabaseIsSet = false;
 
     public String[] runways;
-    public String icaoCode, aptName, countryCode, municipality;
-    public Double elevation;
-    public Double geoLat, geoLong;
+    public String icaoCode, Name, countryCode, municipality;
+    public Double elevation, geoLat, geoLong;
     public APTCategory cat;
 
 
     Airport (String icao, String name, String country, String municipality,
              APTCategory cat, Double geoLat, Double geoLong, Double elev, String[] rwys) {
         this.icaoCode = icao;
-        this.aptName = name;
+        this.Name = name;
         this.countryCode = country;
         this.municipality = municipality;
         this.cat = cat;
@@ -36,9 +35,9 @@ public class Airport {
         this.runways = rwys;
     }
 
-    Airport(String icao, String aptName, String municipality) {
+    Airport(String icao, String Name, String municipality) {
         this.icaoCode = icao;
-        this.aptName = aptName;
+        this.Name = Name;
         this.municipality = municipality;
     }
 
@@ -47,7 +46,7 @@ public class Airport {
      *
      * @see #aptDatabase
      */
-    public static LinkedList<Airport> getAptDatabase() {
+    public static List<Airport> getAptDatabase() {
         if (!aptDatabaseIsSet) setAirportsDatabase();
         return aptDatabase;
     }
@@ -62,18 +61,46 @@ public class Airport {
     }
 
     /**
+     * The method prompts the user to enter all the airports to be searched for
+     * and creates a list of provided strings which are separated by any non-letter
+     * character.
+     *
+     * @param initMsg The message to be printed prior to the prompt. If null,
+     *                nothing is printed.
+     *
+     * @return Returns the {@code non-null} list of strings supposed to be airports'
+     *         ICAO codes, municipalities or airports names, which will be searched
+     *         for in the database.
+     */
+    public static @NotNull List<String> enterAirports(@Nullable String initMsg) {
+        List<String> result = new LinkedList<>();
+        String[] fields;
+
+        if (initMsg != null) {
+            System.out.println(initMsg);
+        }
+        do {
+            System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
+            fields = DialogCenter.getInput(false).split("[^A-Za-z]+");
+            result.addAll(Arrays.asList(fields));
+        } while (DialogCenter.getResponse(null,"Do you wish to enter more airports? (Y/n): ", "Y", true));
+        return result;
+    }
+
+    /**
      * This method takes a database of airports (either a complete database or
      * its part) and asks the user to enter all the airports he wishes to search
      * for. Then iterates through the list and tries to match every input entry.
      * The method also handles cases, when any or multiple airports match the
      * input and asks user to correct them.
      *
-     * @param allApts The list of the airports to be searched in.
+     * @param allApts The list of the airports to be searched in. If {@code null},
+     *                then the stored database is retrieved and used in the method.
      *
      * @param repeatedSearch Re-launches this method in case of an incorrect
      *                       input.
      *
-     * @return Returns the list of airports which match user's requests.
+     * @return Returns a {@code NotNull} list of airports which match user's requests.
      */
     public static @NotNull LinkedList<Airport> searchAirports(@Nullable List<Airport> allApts, boolean repeatedSearch) {
 
@@ -86,7 +113,7 @@ public class Airport {
             else showAirportsList(allApts, "icaoCode, aptName, municipality", false);
         }
 
-        List<String> aptsToSearch = DialogCenter.enterAirports(null);
+        List<String> aptsToSearch = enterAirports(null);
         aptsToSearch.removeIf(String::isBlank);
 
         for (String apt : aptsToSearch) {                                       //iterates through all entries typed by user supposing them being airport codes or names
@@ -94,7 +121,7 @@ public class Airport {
 
             for (Airport airport : allApts) {
                 if (airport.icaoCode.equalsIgnoreCase(apt)        ||
-                    airport.aptName.toLowerCase().contains(apt.toLowerCase()) ||
+                    airport.Name.toLowerCase().contains(apt.toLowerCase())    ||
                     airport.municipality.toLowerCase().contains(apt.toLowerCase())) {
                     matchedApts.add(airport);
                 }
@@ -102,22 +129,26 @@ public class Airport {
             LinkedList<Airport> intermediateResult;
             switch (matchedApts.size()) {
                 case 0:
-                    System.out.println("Error, no airport matched \"" + apt + "\" entry.");
-                    if (DialogCenter.getResponse(null,"Do you wish to retype this entry? (Y/n): ", "Y", false)) {
-                        if ((intermediateResult = searchAirports(allApts, true)).size() == 1) {
-                            result.addAll(intermediateResult);
-                        }
+                    System.out.printf("Error, no airport matched \"%s\" entry.%n", apt);
+                    if (DialogCenter.getResponse(null,
+                                                 "Do you wish to retype this entry? (Y/n): ",
+                                                 "Y",
+                                                 false)
+                        ) {
+                        if ((intermediateResult = searchAirports(allApts, true)).size() == 1) result.addAll(intermediateResult);
                     }
                     break;
                 case 1:
                     result.addAll(matchedApts); //adds the !only! matching airport to the result
                     break;
                 default:
-                    System.out.println("\nThere were multiple matches for entry: \"" + apt + "\".");
+                    System.out.printf("%nThere were multiple matches for entry: \"%s\".%n", apt);
                     if (DialogCenter.getResponse("Do you wish to precise more this entry? ",
                                                  "You will be only able to search among the airports that matched \"" + apt + "\". (Y/n): ",
-                                                 "Y", false)) {
-                        System.out.println("\nEnter 4-letter ICAO code for best precision.");
+                                                 "Y",
+                                                 false)
+                        ) {
+                        System.out.printf("%nEnter 4-letter ICAO code for best precision.%n");
                         intermediateResult = searchAirports(matchedApts, true);
                         result.addAll(intermediateResult);
                     }
@@ -146,7 +177,11 @@ public class Airport {
         if (aptsToShow == null) aptsToShow = getAptDatabase();
 
         if (autoProceed ||
-            DialogCenter.getResponse(null,"Do you want to show all " + aptsToShow.size() + " entries? (Y/n): ", "Y", true)) {
+            DialogCenter.getResponse(null,
+                                     "Do you want to show all " + aptsToShow.size() + " entries? (Y/n): ",
+                                     "Y",
+                                     true)
+            ) {
             StringBuilder sb = new StringBuilder();
             for (Airport apt : aptsToShow) {
                 for (Field fld  : Airport.class.getFields()) {
