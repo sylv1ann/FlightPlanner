@@ -49,11 +49,11 @@ public class GetAirportInfoPlugin implements Plugin {
                 outStream =
                         DialogCenter.chooseOutputForm(" for " + apt.icaoCode + " airport",
                                                       true,
-                                                      apt.icaoCode
+                                                      apt.icaoCode + "_INFO"
                                                      );
             else {
                 if (outStream instanceof FileOutputStream)
-                    outStream = DialogCenter.setFileOutputStream(false, apt.icaoCode);
+                    outStream = DialogCenter.setFileOutputStream(false, apt.icaoCode + "_INFO");
             }
             PrintStream pr = new PrintStream(outStream);
             pr.printf("------------ Information about %s airport. ------------%n" +

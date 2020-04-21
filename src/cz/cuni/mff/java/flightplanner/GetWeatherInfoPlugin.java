@@ -2,17 +2,15 @@ package cz.cuni.mff.java.flightplanner;
 
 import org.jetbrains.annotations.NotNull;
 import java.io.*;
-import java.time.LocalDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 
 public class GetWeatherInfoPlugin implements Plugin {
 
-    final String dateTimeStrFormat = "yyyy-MM-dd-HH:mm";
+    final String dateTimeStrFormat = "yyyy-MM-dd HH:mm";
           OutputStream outStream;
 
     @Override
@@ -29,7 +27,6 @@ public class GetWeatherInfoPlugin implements Plugin {
 
     @Override
     public void action() {
-
         LocalDateTime fromTime, toTime;
 
         boolean autoOutputManagement =
@@ -55,6 +52,13 @@ public class GetWeatherInfoPlugin implements Plugin {
             toTime = LocalDateTime.now();
         }
 
+        ZonedDateTime utcFromTime =
+                fromTime.atZone(ZoneId.systemDefault())
+                        .withZoneSameInstant(ZoneId.of("UTC"));
+        ZonedDateTime utcToTime   =
+                toTime  .atZone(ZoneId.systemDefault())
+                        .withZoneSameInstant(ZoneId.of("UTC"));
+
         List<File>      downloadedMETARs = new ArrayList<>();
         List<Airport>   foundAirports =
                           Airport.searchAirports(null,false);
@@ -65,7 +69,7 @@ public class GetWeatherInfoPlugin implements Plugin {
         for (Airport apt : foundAirports) {
 
             File aptMETAR =
-                  Downloader.downloadMETAR(fromTime,toTime,
+                  Downloader.downloadMETAR(utcFromTime,utcToTime,
                                            apt);
 
             if (!autoOutputManagement) {
@@ -109,7 +113,7 @@ public class GetWeatherInfoPlugin implements Plugin {
 
         try {
             System.out.println("Incorrect date/time format will result in taking the current time - 24 hours.");
-            System.out.printf("Please enter the \"from\" date in the following format: %s: ", dateTimeStrFormat);
+            System.out.printf("Please enter the \"from\" date in the following format: %s : ", dateTimeStrFormat);
             chosenDateTime =
                     LocalDateTime.parse(DialogCenter.getInput(false),
                                         format
@@ -124,7 +128,7 @@ public class GetWeatherInfoPlugin implements Plugin {
                 resultTime = chosenDateTime;
         }
         catch (DateTimeParseException e) {
-            resultTime = now.minusDays(1);
+                resultTime = now.minusDays(1);
         }
 
         return resultTime;
@@ -146,7 +150,7 @@ public class GetWeatherInfoPlugin implements Plugin {
      */
     private @NotNull LocalDateTime getToDateTime(@NotNull LocalDateTime fromTime, DateTimeFormatter format) {
         LocalDateTime now = LocalDateTime.now(),
-                resultTime;
+                      resultTime;
 
         try {
             System.out.println("Incorrect date/time format will result in taking the current time - 24 hours.");

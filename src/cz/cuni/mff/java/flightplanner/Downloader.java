@@ -28,7 +28,7 @@ public class Downloader {
      *         selected airport, date and time if available. Returns null, if an
      *         error occurs.
      */
-    public static @Nullable File downloadMETAR(@NotNull LocalDateTime timeFrom,@NotNull LocalDateTime timeTo, @NotNull Airport airportTarget) {
+    public static @Nullable File downloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget) {
 
         URL page = buildMETARURL(timeFrom.toString(), timeTo.toString(), airportTarget.icaoCode);
         if (page != null) {
@@ -46,7 +46,7 @@ public class Downloader {
                      BufferedReader br = new BufferedReader(new InputStreamReader(bis))) {
 
                     String finalAirfieldICAO = airportTarget.icaoCode;
-                    Thread t = new Thread(() -> System.out.println(finalAirfieldICAO.toUpperCase() + " METAR download in process"));
+                    Thread t = new Thread(() -> System.out.printf("... %s METAR download in process ...%n", finalAirfieldICAO.toUpperCase()));
 
                     while ((line = br.readLine()) != null) {            //while loop which ensures that only correct part of the website is
                         if (!websiteBody && "<pre>".equals(line)) {     //written to the tmp file.

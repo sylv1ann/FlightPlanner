@@ -120,7 +120,7 @@ public class Airport {
             LinkedList<Airport> matchedApts = new LinkedList<>();               //creates new list of airports that match current entry of the list
 
             for (Airport airport : allApts) {
-                if (airport.icaoCode.equalsIgnoreCase(apt)        ||
+                if (airport.icaoCode.equalsIgnoreCase(apt)         ||
                     airport.Name.toLowerCase().contains(apt.toLowerCase())    ||
                     airport.municipality.toLowerCase().contains(apt.toLowerCase())) {
                     matchedApts.add(airport);
@@ -142,13 +142,13 @@ public class Airport {
                     result.addAll(matchedApts); //adds the !only! matching airport to the result
                     break;
                 default:
-                    System.out.printf("%nThere were multiple matches for entry: \"%s\".%n", apt);
+                    System.out.printf("There were multiple matches for entry: \"%s\".%n", apt);
                     if (DialogCenter.getResponse("Do you wish to precise more this entry? ",
                                                  "You will be only able to search among the airports that matched \"" + apt + "\". (Y/n): ",
                                                  "Y",
                                                  false)
                         ) {
-                        System.out.printf("%nEnter 4-letter ICAO code for best precision.%n");
+                        System.out.println("Enter 4-letter ICAO code for best precision.");
                         intermediateResult = searchAirports(matchedApts, true);
                         result.addAll(intermediateResult);
                     }

@@ -62,15 +62,15 @@ public class DialogCenter {
     public static OutputStream chooseOutputForm(@NotNull String arg, boolean prompt, @Nullable String fileName) {
         OutputStream result;
 
-        System.out.printf("%nPlease type your choice of output form (screen / file / default)%s: ", arg);
+        System.out.printf("Please type your choice of output form (screen / file / default)%s: ", arg);
 
         switch (getInput(false)) {
-            default: //no break on purpose;
-            case "screen":
-                result = System.out;
-                break;
             case "file":
                 result = setFileOutputStream(prompt, fileName);
+                break;
+            case "screen": //no break on purpose because default outputstream is screen
+            default:
+                result = System.out;
                 break;
         }
 
@@ -103,8 +103,8 @@ public class DialogCenter {
                 : "previously used";
 
         if (prompt && getResponse("If you want to choose the location for the file, please type \"Y\".",
-                                  "If not, type anything else and  " + dirSetting + " directory will be used.",
-                                  "Y", false)) {
+                                  "If not, type anything else and  " + dirSetting + " directory will be used: ",
+                                  "Y", true)) {
             System.out.print("Please enter the absolute path of the destination directory: ");
             filePath = getInput(false);
         }
@@ -275,7 +275,7 @@ public class DialogCenter {
             line = getInput(blankLineAllowed);
         }
 
-        return line + "\n";
+        return line;
     }
 
     /**
@@ -299,6 +299,8 @@ public class DialogCenter {
         if (blankAllowed )
             autoDecline = "Enter key press will decline automatically.\n";
         System.out.print(autoDecline + question);
-        return getInput(blankAllowed).trim().startsWith(trueResponse);
+        boolean trueAnswer = getInput(blankAllowed).trim().startsWith(trueResponse);
+        System.out.print("\n");
+        return trueAnswer;
     }
 }
