@@ -29,17 +29,28 @@ public class GetAirportInfoPlugin implements Plugin {
      */
     @Override
     public void action() {
-        boolean auto = DialogCenter.getResponse(null,
-                                                "Do you want the " + this.keyword() + " output to be managed automatically? (Y/n): ",
-                                                "Y",
-                                                true
-                                               );
-        List<Airport> foundAirports = Airport.searchAirports(null, false);
-        if (auto)
-            outStream = DialogCenter.chooseOutputForm("", false, null);
+        boolean autoOutputManagement =
+                DialogCenter.getResponse(null,
+                                         "Do you want the " + this.keyword() + " output to be managed automatically? (Y/n): ",
+                                         "Y",
+                                         true
+                                        );
+        List<Airport> foundAirports =
+                Airport.searchAirports(null,false);
+
+        if (autoOutputManagement)
+            outStream = DialogCenter.chooseOutputForm("",
+                                                      false,
+                                                      null
+                                                     );
         for (Airport apt : foundAirports) {
-            if (!auto)
-                outStream = DialogCenter.chooseOutputForm(" for " + apt.icaoCode + " airport", true, apt.icaoCode);
+
+            if (!autoOutputManagement)
+                outStream =
+                        DialogCenter.chooseOutputForm(" for " + apt.icaoCode + " airport",
+                                                      true,
+                                                      apt.icaoCode
+                                                     );
             else {
                 if (outStream instanceof FileOutputStream)
                     outStream = DialogCenter.setFileOutputStream(false, apt.icaoCode);
@@ -57,14 +68,18 @@ public class GetAirportInfoPlugin implements Plugin {
                         apt.geoLong,    apt.elevation,
                         Airport.ftTomConverter(apt.elevation)
                      );
-            String appendChar = apt.runways.length > 1 ? "s" : "";
+            String appendChar =
+                    apt.runways.length > 1
+                            ? "s"
+                            : "";
+
             pr.printf("This airport has %d runway%s:%n", apt.runways.length, appendChar);
             for (String rwy : apt.runways) {
                 String[] fields = rwy.split(",", -1);
                 pr.printf("Runway identification is: %s/%s.%n", fields[5], fields[11]);
                 pr.printf("    It's length is: %s feet (%.1f meters) and width: %s feet (%.1f meters).%n",
-                            fields[0], Airport.ftTomConverter(Double.parseDouble(fields[0])),
-                            fields[1], Airport.ftTomConverter(Double.parseDouble(fields[1]))
+                          fields[0], Airport.ftTomConverter(Double.parseDouble(fields[0])),
+                          fields[1], Airport.ftTomConverter(Double.parseDouble(fields[1]))
                          );
             }
             pr.printf("------------ End of information about %s airport.------------%n%n", apt.icaoCode);
@@ -74,9 +89,17 @@ public class GetAirportInfoPlugin implements Plugin {
             } else { //the outStream goes to the screen
                 boolean notLastEntry = foundAirports.iterator().hasNext();
                 boolean autoPrint = notLastEntry &&
-                                    DialogCenter.getResponse(null, "To print automatically write 'a': ", "a", true);
+                                    DialogCenter.getResponse(null,
+                                                             "To print automatically write 'a': ",
+                                                             "a",
+                                                             true
+                                                            );
                 if (notLastEntry && !autoPrint)
-                    DialogCenter.getResponse(null, "Press Enter to continue.\n", "", true);
+                    DialogCenter.getResponse(null,
+                                             "Press Enter to continue.\n",
+                                             "",
+                                             true
+                                            );
             }
         }
     }

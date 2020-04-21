@@ -68,6 +68,7 @@ public interface Plugin {
         for (Plugin mod : active) {
             mod.action();
         }
+        System.out.println("Everything finished just fine.");
     }
 
     String name();

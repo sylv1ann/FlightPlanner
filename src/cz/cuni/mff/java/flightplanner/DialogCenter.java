@@ -7,9 +7,9 @@ import java.util.*;
 import java.util.stream.*;
 
 /**
- * This class should treat all the dialogs of the user with the program. The
+ * This class treats the dialogs of the user with the program. The
  * DialogCenter class ensures the communication of the program and treats the user
- * inputs. Methods in this class may be invoked from other classes.
+ * inputs. Methods in this class are often invoked from other classes.
  */
 public class DialogCenter {
 
@@ -27,10 +27,11 @@ public class DialogCenter {
         allPlugs = Plugin.loadAllPlugins(projectPackageName);
         Airport.setAirportsDatabase();
         showMainMenu();
-        activePlugs = chooseModules(allPlugs);
+        activePlugs = choosePlugins(allPlugs);
         if (activePlugs.size() > 0) {
             checkActivePlugins(activePlugs);
             Plugin.startPlugins(activePlugs);
+            choosePlugins(allPlugs);
         }
     }
 
@@ -97,8 +98,9 @@ public class DialogCenter {
     public static OutputStream setFileOutputStream(boolean prompt, @Nullable String fileName) {
 
         OutputStream result = System.out; //the output is printed on stdout by default
-        String dirSetting = ".".equals(filePath) ? "current" : "previously used";
-
+        String dirSetting = ".".equals(filePath)
+                ? "current"
+                : "previously used";
 
         if (prompt && getResponse("If you want to choose the location for the file, please type \"Y\".",
                                   "If not, type anything else and  " + dirSetting + " directory will be used.",
@@ -109,7 +111,7 @@ public class DialogCenter {
 
         String completeFileName = "";
         if (fileName != null)
-            completeFileName = fileName + "_" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()) + ".txt";
+            completeFileName = fileName + "_" + new SimpleDateFormat("yyyy-MM-ddHHmmss").format(new Date()) + ".txt";
 
         try {
             if (".".equals(filePath)) {//default setting
@@ -126,36 +128,13 @@ public class DialogCenter {
     }
 
     /**
-     * The method gets the input typed-in by the user.
-     *
-     * @param blankLineAllowed Flag to indicate whether the empty line will be
-     *                         accepted as a correct input to be returned.
-     *
-     * @return Non-null and non-empty {@code String} input given by a user.
-     */
-    public static @NotNull String getInput(boolean blankLineAllowed) {
-        String line;
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        try {
-            do {
-                line = br.readLine();
-            } while (line == null || (!blankLineAllowed && line.isBlank()));
-        } catch (IOException e) {
-            System.out.println("Something went wrong. Please try again.");
-            line = getInput(blankLineAllowed);
-        }
-
-        return line;
-    }
-
-    /**
      * Launches an interactive mode which makes user choose from available methods.
      *
      * @param modes The list of all available modules.
      *
      * @return Returns the list of the modules chosen by the user.
      */
-    private static @NotNull ArrayList<Plugin> chooseModules(@NotNull List<Plugin> modes) {
+    public static @NotNull ArrayList<Plugin> choosePlugins(@NotNull List<Plugin> modes) {
         ArrayList<Plugin> activePlugins = new ArrayList<>();
         String line;
         String[] options;
@@ -277,6 +256,29 @@ public class DialogCenter {
     }
 
     /**
+     * The method gets the input typed-in by the user.
+     *
+     * @param blankLineAllowed Flag to indicate whether the empty line will be
+     *                         accepted as a correct input to be returned.
+     *
+     * @return Non-null and non-empty {@code String} input given by a user.
+     */
+    public static @NotNull String getInput(boolean blankLineAllowed) {
+        String line;
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        try {
+            do {
+                line = br.readLine();
+            } while (line == null || (!blankLineAllowed && line.isBlank()));
+        } catch (IOException e) {
+            System.out.println("Something went wrong. Please try again.");
+            line = getInput(blankLineAllowed);
+        }
+
+        return line + "\n";
+    }
+
+    /**
      * Method prompts a message (usually a question). The user is expected to
      * provide the answer to the question which then is evaluated based on the
      * {@code trueResponse} parameter. If the beginnings of both start with the
@@ -295,8 +297,8 @@ public class DialogCenter {
         if (message != null) System.out.println(message);
         String autoDecline = "";
         if (blankAllowed )
-            autoDecline = "Enter key press will decline automatically. ";
-        System.out.print(autoDecline + question );
+            autoDecline = "Enter key press will decline automatically.\n";
+        System.out.print(autoDecline + question);
         return getInput(blankAllowed).trim().startsWith(trueResponse);
     }
 }
