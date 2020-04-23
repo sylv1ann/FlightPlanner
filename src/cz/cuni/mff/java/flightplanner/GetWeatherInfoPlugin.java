@@ -68,15 +68,12 @@ public class GetWeatherInfoPlugin implements Plugin {
                                                null );
         for (Airport apt : foundAirports) {
 
-            File aptMETAR =
-                  Downloader.downloadMETAR(utcFromTime,utcToTime,
-                                           apt);
 
             if (!autoOutputManagement) {
                 outStream =
-                  DialogCenter.chooseOutputForm(" for " + apt.icaoCode + " airport",
-                                                true,
-                                                apt.icaoCode + "_METAR");
+                    DialogCenter.chooseOutputForm(  " for " + apt.icaoCode + " airport",
+                                                    true,
+                                                    apt.icaoCode + "_METAR");
             }
             else {
                 if (outStream instanceof FileOutputStream) {
@@ -84,6 +81,11 @@ public class GetWeatherInfoPlugin implements Plugin {
                         DialogCenter.setFileOutputStream(false,apt.icaoCode + "_METAR");
                 }
             }
+
+            File aptMETAR =
+                    Downloader.downloadMETAR(utcFromTime, utcToTime,
+                            apt);
+
             PrintStream pr = new PrintStream(outStream);
 
             try (BufferedReader br =
@@ -106,7 +108,7 @@ public class GetWeatherInfoPlugin implements Plugin {
      * @return The date and time from which the weather information will be
      *         gathered.
      */
-    private @NotNull LocalDateTime getFromDateTime(DateTimeFormatter format) {
+    @NotNull LocalDateTime getFromDateTime(DateTimeFormatter format) {
         LocalDateTime now = LocalDateTime.now(),
                       resultTime,
                       chosenDateTime;
@@ -148,7 +150,7 @@ public class GetWeatherInfoPlugin implements Plugin {
      * @return Returns date and time up until which weather data will be
      *         downloaded and processed.
      */
-    private @NotNull LocalDateTime getToDateTime(@NotNull LocalDateTime fromTime, DateTimeFormatter format) {
+    @NotNull LocalDateTime getToDateTime(@NotNull LocalDateTime fromTime, DateTimeFormatter format) {
         LocalDateTime now = LocalDateTime.now(),
                       resultTime;
 

@@ -46,7 +46,7 @@ public class Airport {
      *
      * @see #aptDatabase
      */
-    public static List<Airport> getAptDatabase() {
+    static List<Airport> getAptDatabase() {
         if (!aptDatabaseIsSet) setAirportsDatabase();
         return aptDatabase;
     }
@@ -56,7 +56,7 @@ public class Airport {
      * @param arg The value in feet to be converted.
      * @return Returns the {@code arg} parameter value in meters.
      */
-    public static double ftTomConverter(double arg) {
+    static double ftTomConverter(double arg) {
         return arg * 0.3048;
     }
 
@@ -72,7 +72,7 @@ public class Airport {
      *         ICAO codes, municipalities or airports names, which will be searched
      *         for in the database.
      */
-    public static @NotNull List<String> enterAirports(@Nullable String initMsg) {
+    static @NotNull List<String> enterAirports(@Nullable String initMsg) {
         List<String> result = new LinkedList<>();
         String[] fields;
 
@@ -102,15 +102,14 @@ public class Airport {
      *
      * @return Returns a {@code NotNull} list of airports which match user's requests.
      */
-    public static @NotNull LinkedList<Airport> searchAirports(@Nullable List<Airport> allApts, boolean repeatedSearch) {
+    static @NotNull LinkedList<Airport> searchAirports(@Nullable List<Airport> allApts, boolean repeatedSearch) {
 
         LinkedList<Airport> result = new LinkedList<>();
         if (!aptDatabaseIsSet) setAirportsDatabase();
         if (allApts == null) allApts = getAptDatabase();
 
         if(repeatedSearch) {
-            if (allApts.size() <= 10) showAirportsList(allApts, "icaoCode, aptName, municipality", true);
-            else showAirportsList(allApts, "icaoCode, aptName, municipality", false);
+            showAirportsList(allApts, "icaoCode, aptName, municipality", allApts.size() <= 10);
         }
 
         List<String> aptsToSearch = enterAirports(null);
@@ -171,7 +170,7 @@ public class Airport {
      *                    airports or lets the user decide whether all the airports
      *                    should be shown (used with large number of airports).
      */
-    public static void showAirportsList(List<Airport> aptsToShow, @NotNull String fields, boolean autoProceed) {
+    static void showAirportsList(List<Airport> aptsToShow, @NotNull String fields, boolean autoProceed) {
 
         if (!aptDatabaseIsSet) setAirportsDatabase(); //ensures that the database is not empty
         if (aptsToShow == null) aptsToShow = getAptDatabase();
@@ -205,7 +204,7 @@ public class Airport {
      *
      * @see #aptDatabase
      */
-    public static void setAirportsDatabase() {
+    static void setAirportsDatabase() {
         String currentDirPath = new File("").getAbsolutePath(), line;
         File src = new File(currentDirPath + File.separator + "MRpLairportsDatabase.csv");
         String[] csvFields;

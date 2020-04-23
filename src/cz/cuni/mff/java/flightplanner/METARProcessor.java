@@ -6,7 +6,7 @@ package cz.cuni.mff.java.flightplanner;
  * This class processes, parses annd translates all the files into the
  * comprehensible language.
  */
-public class METARProcessor {
+class METARProcessor {
     // TODO: 29/02/2020 METARProcessor is the class which will
     //  get the list of the downloaded .txt files with METARs,
     //  process them and translate them into comprehensible .txt format.

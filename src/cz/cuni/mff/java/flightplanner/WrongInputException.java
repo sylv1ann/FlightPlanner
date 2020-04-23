@@ -2,9 +2,9 @@ package cz.cuni.mff.java.flightplanner;
 
 public class WrongInputException extends Throwable {
 
-    public WrongInputException(String msg) {
+    public WrongInputException(String format, Object... args) {
         super("An error has occurred.");
-        System.out.println(msg);
+        System.out.printf(format, args);
     }
 
     public WrongInputException() { }
