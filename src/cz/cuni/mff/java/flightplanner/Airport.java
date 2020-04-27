@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import java.io.*;
 import java.lang.reflect.Field;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
 
@@ -52,12 +53,29 @@ public class Airport {
     }
 
     /**
+     * Wrapper around ftTomConverter(double) method. Casts the {@code arg}
+     * string to double and converts it using {@code ftTomConverter(double)}.
+     * @param arg Argument to be parsed and converted.
+     * @param constant the constant multiplied to the {@code arg}
+     * @return converted value from {@code arg}
+     * @see #constantConverter(double, double)
+     */
+    static @NotNull String constantConverter(String arg, double constant) {
+        try {
+            double argNum = constantConverter(Double.parseDouble(arg), constant);
+            return new DecimalFormat("#.##").format(argNum);
+        } catch (NumberFormatException ignored) {
+            return String.valueOf(Double.NaN);
+        }
+    }
+
+    /**
      * Feet to meters converter.
      * @param arg The value in feet to be converted.
      * @return Returns the {@code arg} parameter value in meters.
      */
-    static double ftTomConverter(double arg) {
-        return arg * 0.3048;
+    static double constantConverter(double arg, double constant) {
+        return arg * constant;
     }
 
     /**
@@ -94,7 +112,7 @@ public class Airport {
      * The method also handles cases, when any or multiple airports match the
      * input and asks user to correct them.
      *
-     * @param allApts The list of the airports to be searched in. If {@code null},
+     * @param airportsList The list of the airports to be searched in. If {@code null},
      *                then the stored database is retrieved and used in the method.
      *
      * @param repeatedSearch Re-launches this method in case of an incorrect
@@ -102,30 +120,30 @@ public class Airport {
      *
      * @return Returns a {@code NotNull} list of airports which match user's requests.
      */
-    static @NotNull LinkedList<Airport> searchAirports(@Nullable List<Airport> allApts, boolean repeatedSearch) {
+    static @NotNull List<Airport> searchAirports(@Nullable List<Airport> airportsList, boolean repeatedSearch) {
 
-        LinkedList<Airport> result = new LinkedList<>();
+        List<Airport> result = new LinkedList<>();
         if (!aptDatabaseIsSet) setAirportsDatabase();
-        if (allApts == null) allApts = getAptDatabase();
+        if (airportsList == null) airportsList = getAptDatabase();
 
         if(repeatedSearch) {
-            showAirportsList(allApts, "icaoCode, aptName, municipality", allApts.size() <= 10);
+            showAirportsList(airportsList, "icaoCode, aptName, municipality", airportsList.size() <= 10);
         }
 
         List<String> aptsToSearch = enterAirports(null);
         aptsToSearch.removeIf(String::isBlank);
 
         for (String apt : aptsToSearch) {                                       //iterates through all entries typed by user supposing them being airport codes or names
-            LinkedList<Airport> matchedApts = new LinkedList<>();               //creates new list of airports that match current entry of the list
+            List<Airport> matchedApts = new LinkedList<>();               //creates new list of airports that match current entry of the list
 
-            for (Airport airport : allApts) {
+            for (Airport airport : airportsList) {
                 if (airport.icaoCode.equalsIgnoreCase(apt)         ||
                     airport.Name.toLowerCase().contains(apt.toLowerCase())    ||
                     airport.municipality.toLowerCase().contains(apt.toLowerCase())) {
                     matchedApts.add(airport);
                 }
             }
-            LinkedList<Airport> intermediateResult;
+            List<Airport> intermediateResult;
             switch (matchedApts.size()) {
                 case 0:
                     System.out.printf("Error, no airport matched \"%s\" entry.%n", apt);
@@ -134,7 +152,7 @@ public class Airport {
                                                  "Y",
                                                  false)
                         ) {
-                        if ((intermediateResult = searchAirports(allApts, true)).size() == 1) result.addAll(intermediateResult);
+                        if ((intermediateResult = searchAirports(airportsList, true)).size() == 1) result.addAll(intermediateResult);
                     }
                     break;
                 case 1:
