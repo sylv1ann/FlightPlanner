@@ -17,15 +17,21 @@ import java.util.Map;
 class METARDecoder {
 
     private static final Map<String, String> metarDict = new HashMap<>();
-    private static final String wndPattern      = "((VRB)[0-9]{2}|[0-9]{5})(G[0-9]{2})?(KT|MPS)",
-                                vartnPattern    = "[0-9]{3,4}V[0-9]{3,4}",
-                                vsbltyPattern   = "[0-9 /]{1,5}(SM)?",
-                                rvrPattern      = "R[0-9]{2}[LCR]?/(P|M|[0-9]+V)?[0-9]+(FT/)?[DNU]?",
-                                weatherPattern  = "[+-]?[a-zA-Z]{2,}",
-                                tempPattern     = "M?[0-9]{2}/M?[0-9]{2}";
-    private static final double knotsToKmH = 1.852,
-                                ftToM      = 0.3048;
-
+    private static final String windPttrn     = "((VRB)[0-9]{2}|[0-9]{5})(G[0-9]{2})?(KT|MPS)",
+                                vartnPttrn    = "[0-9]{3,4}V[0-9]{3,4}",
+                                vsbltyPttrn   = "[0-9 /.]{1,5}(SM)?",
+                                rvrPttrn      = "R[0-9]{2}[LCR]?/(P|M|[0-9]+V)?[0-9]+(FT)?[/DNU]?",
+                                weatherPttrn  = "(RE|[+-])?[a-zA-Z]{2,}",
+                                tempPttrn     = "M?[0-9]{2}/M?[0-9]{2}",
+                                cloudPttrn    = "(SKC|FEW|BKN|SCT|OVC|CLR)[0-9]{3}(CB|TCU|///)?",
+                                vrtclVisPttrn = "VV[0-9]{3}",
+                                pressurePttrn = "[AQ][0-9]{4}",
+                                windshrPttrn  = "WS (ALL RWY|(RWY[0-9]{2}[LCR]?))",
+                                slpPttrn      = "SLP[0-9]{3}";
+    private static final double knotsToKmH  = 1.852,
+                                ftToM       = 0.3048,
+                                inchTohPa   = 1/2.953,
+                                hPaToInch   = 1/(100 * inchTohPa);
 
     /**
      * translator
@@ -126,53 +132,213 @@ class METARDecoder {
                        metarIssuedAt.getMinute());
 
         for (int i = 4; i < tokens.length; i++) { //0 -> dateTime, 1 -> metar type, 2 -> airport (already noted), 3 -> day of (unspecified) month and time in zulu
-            if (tokens[i].matches(wndPattern)) {    //wind direction and speed information
-                printer.println(windDirSpd(tokens[i], wndPattern));
+            if (tokens[i].matches(windPttrn)) {    //wind direction and speed information
+                printer.println(windDirSpd(tokens[i], windPttrn));
                 continue;
             }
-            if (tokens[i].matches(vartnPattern)) {
-                printer.println(windVariation(tokens[i], vartnPattern));
+            if (tokens[i].matches(vartnPttrn)) {
+                printer.println(windVariation(tokens[i], vartnPttrn));
                 continue;
             }
-            if (tokens[i].matches(vsbltyPattern)) {
-                printer.println(visibility(tokens[i], vsbltyPattern));
+            if (tokens[i].matches(vsbltyPttrn)) {
+                printer.println(visibility(tokens[i], vsbltyPttrn));
                 continue;
             }
-            if (tokens[i].matches("[0-9]+") && (i + 1 < tokens.length) &&
-                tokens[i + 1].matches(vsbltyPattern)) {
-                printer.println(visibility(tokens[i] + " " + tokens[i + 1], vsbltyPattern));
+            if (tokens[i].matches("[0-9]+") && (i + 1 < tokens.length) && //the if condition treats the "1 1/4SM" example
+                tokens[i + 1].matches(vsbltyPttrn)) {
+                printer.println(visibility(tokens[i] + " " + tokens[i + 1], vsbltyPttrn));
                 i++;
                 continue;
             }
-            if (tokens[i].matches(rvrPattern)) {
-                printer.println(rvrVisibility(tokens[i], rvrPattern));
+            if (tokens[i].matches(rvrPttrn)) {
+                printer.println(rvrVisibility(tokens[i], rvrPttrn));
                 continue;
             }
-            if (tokens[i].matches(weatherPattern)) {
-                printer.println(weatherPhenomena(tokens[i], weatherPattern));
+            if (tokens[i].matches(vrtclVisPttrn)) {
+                printer.println(verticalVisibility(tokens[i], vrtclVisPttrn));
+                continue;
             }
-            if (tokens[i].matches(tempPattern)) {
-                printer.println(temperature(tokens[i], tempPattern));
+            if (tokens[i].matches(weatherPttrn)) {
+                printer.println(weatherPhenomena(tokens[i], weatherPttrn, tokens[i].startsWith("RE")));
+                continue;
+            }
+            if (tokens[i].matches(cloudPttrn)) {
+                printer.println(cloudLayer(tokens[i], cloudPttrn));
+                continue;
+            }
+            if (tokens[i].matches(tempPttrn)) {
+                printer.println(temperature(tokens[i], tempPttrn));
+                continue;
+            }
+            if (tokens[i].matches(pressurePttrn)) {
+                printer.println(pressure(tokens[i], pressurePttrn));
+                continue;
+            }
+            if (tokens[i].matches(windshrPttrn)) {
+                printer.println(windshearWarning(tokens[i], windshrPttrn));
+                continue;
+            }
+            if (tokens[i].matches(slpPttrn)) {
+                printer.println(seaLvlPressure(tokens[i], slpPttrn));
+                continue;
             }
             if (tokens[i].matches("[a-zA-Z]+")) {
                 String result = metarDict.get(tokens[i]);
                 if (result != null) {
                     printer.printf("%s: %s.%n", tokens[i], result);
                 }
+            } else {
+                printer.println(tokens[i] + ": Unknown token.");
             }
             // TODO: 26/04/2020 Doplň parsovanie metaru podla struktury na stranke http://meteocentre.com/doc/metar.html
         }
+    }
+
+    /**
+     * TBD
+     * @param token TBD
+     * @param slpPttrn TBD
+     * @return TBD
+     */
+    static @NotNull String seaLvlPressure(@NotNull String token, @NotNull String slpPttrn) {
+        initTokenDecoder(token, slpPttrn);
+
+        String  seaLevelPressure = "",
+                conversion       = "";
+        try {
+            double slPressure = Double.parseDouble(token.substring(3)) / 10;
+            if (slPressure >= 50.0)
+                seaLevelPressure = "9%f".replace("%f", String.valueOf(slPressure));
+            else
+                seaLevelPressure = "10%f".replace("%f", String.valueOf(slPressure));
+            conversion = conversion(true,
+                                    seaLevelPressure.substring(0,seaLevelPressure.indexOf(".")),
+                                    hPaToInch,
+                                    "inches");
+        }
+        catch (NumberFormatException ignored) { }
+
+        return "%TOKEN\nSea-level pressure: %VALUE%CONVERSION Beware of the possible difference with QNH!"
+                .replace("%TOKEN", sectionSeparator(token))
+                .replace("%VALUE", seaLevelPressure)
+                .replace("%CONVERSION", conversion);
+    }
+
+    /**
+     * TBD
+     * @param token TBD
+     * @param windshrPttrn TBD
+     * @return TBD
+     */
+    static @NotNull String windshearWarning(@NotNull String token, @NotNull String windshrPttrn) {
+        initTokenDecoder(token, windshrPttrn);
+
+        String runway;
+        if (token.contains("ALL"))
+            runway = "all runways.";
+        else
+            runway = "runway %s".replace("%s", token.substring(token.indexOf("Y") + 1));
+
+        return "%TOKEN\nWARNING! WINDSHEAR was detected on %RUNWAY."
+               .replace("%TOKEN", sectionSeparator(token))
+               .replace("%RUNWAY", runway);
+    }
+
+    /**
+     * TBD
+     * @param token TBD
+     * @param pressurePttrn TBD
+     * @return TBD
+     */
+    static @NotNull String pressure(@NotNull String token, @NotNull String pressurePttrn) {
+        initTokenDecoder(token, pressurePttrn);
+
+        String  value = token.substring(1),
+                unit  = token.startsWith("Q") ? "hPa" : "inches",
+                conversion = "hPa".equals(unit)
+                                ? conversion(true,value,hPaToInch,"inches")
+                                : conversion(true,value,inchTohPa,"hPa");
+
+        if ("inches".equals(unit)) {
+            value = "%fP.%sP"
+                   .replace("%fP", value.substring(0,2))
+                   .replace("%sP", value.substring(2));
+        }
+
+        return "%TOKEN\nSea level pressure (QNH): %VALUE %UNIT%CONVERSION."
+                .replace("%TOKEN", sectionSeparator(token))
+                .replace("%VALUE", value)
+                .replace("%UNIT", unit)
+                .replace("%CONVERSION", conversion);
+    }
+
+    /**
+     * TBD
+     * @param token TBD
+     * @param vrtclVisPttrn TBD
+     * @return TBD
+     */
+    static @NotNull String verticalVisibility(@NotNull String token, @NotNull String vrtclVisPttrn) {
+        initTokenDecoder(token,vrtclVisPttrn);
+
+        String  value = token.substring(2,5),
+                conversion = conversion(true,value,100,"meters");
+
+
+        return "%TOKEN\nVertical visibility: %VALUE feet%CONVERSION."
+                .replace("%TOKEN", sectionSeparator(token))
+                .replace("%VALUE", value)
+                .replace("%CONVERSION", conversion);
+    }
+
+    /**
+     * TBD
+     * @param token TBD
+     * @param cloudPttrn TBD
+     * @return TBD
+     */
+    static @NotNull String cloudLayer(@NotNull String token, @NotNull String cloudPttrn) {
+        initTokenDecoder(token,cloudPttrn);
+
+        assert token.length() >= 6;
+        String layerType = metarDict.get(token.substring(0, 3));
+        if (layerType == null) layerType = "unknown layer type";
+        String  height      = token.substring(3,6),
+                layerHeight = Airport.constantConverter(height,100), //i.e. BKN030 means broken at 3000 feet
+                conversion  = conversion(true,layerHeight, ftToM, "meters");
+        String appendix;
+        switch (token.substring(6)) {
+            case "///":
+                appendix = ", cloud type convection is unknown.";
+                break;
+            case "TCU":
+                appendix = ", towering cumulus.";
+                break;
+            case "CB":
+                appendix = ", cumulonimbus.";
+                break;
+            default:
+                appendix = ".";
+                break;
+        }
+
+        return "%TOKEN\nClouds: A %LAYER detected at %HEIGHT feet%CONVERSION above aerodrome level%APPENDIX"
+                .replace("%TOKEN", sectionSeparator(token))
+                .replace("%LAYER",layerType)
+                .replace("%HEIGHT", layerHeight)
+                .replace("%CONVERSION", conversion)
+                .replace("%APPENDIX", appendix);
     }
 
     // TODO: 27/04/2020 Documentation TBD 
     /**
      * TBD
      * @param token TBD
-     * @param tempPattern TBD
+     * @param tempPttrn TBD
      * @return TBD
      */
-    static @NotNull String temperature(@NotNull String token, @NotNull String tempPattern) {
-        initDecode(token, tempPattern);
+    static @NotNull String temperature(@NotNull String token, @NotNull String tempPttrn) {
+        initTokenDecoder(token, tempPttrn);
 
         String[] temps   = token.split("/");
         String  temp     = temps[0].startsWith("M")
@@ -193,11 +359,11 @@ class METARDecoder {
     /**
      * TBD
      * @param token TBD
-     * @param weatherPattern TBD
+     * @param weatherPttrn TBD
      * @return TBD
      */
-    static @NotNull String weatherPhenomena(@NotNull String token, String weatherPattern) {
-        initDecode(token, weatherPattern);
+    static @NotNull String weatherPhenomena(@NotNull String token, String weatherPttrn, boolean recentWeather) {
+        initTokenDecoder(token, weatherPttrn);
 
         String modifier, tokenBUp = token;
         switch (token.charAt(0)) {
@@ -210,11 +376,13 @@ class METARDecoder {
                 token = token.substring(1);
                 break;
             default:
-                modifier = "moderate";
+                //modifier = "moderate";
+                modifier = "";
                 break;
         }
 
-        String  phenomenon = metarDict.get(token);
+        String  phenomenon = metarDict.get(token),
+                recent     = recentWeather ? "Recent " : "";
         StringBuilder sb = new StringBuilder();
 
         if (phenomenon == null) {
@@ -227,8 +395,10 @@ class METARDecoder {
             }
             phenomenon = sb.toString().strip();
         }
-        return "Weather: %TOKEN = %MODIFIER %PHENOMENON."
-                .replace("%TOKEN", tokenBUp)
+        return "%TOKEN\n%RECENTWeather: %TOKENB = %MODIFIER %PHENOMENON."
+                .replaceFirst("%TOKEN", sectionSeparator(tokenBUp))
+                .replace("%TOKENB",tokenBUp)
+                .replace("%RECENT", recent)
                 .replace("%MODIFIER", modifier)
                 .replace("%PHENOMENON",phenomenon);
     }
@@ -239,11 +409,11 @@ class METARDecoder {
      * specified airport.
      *
      * @param token the runway visibility string to be translated
-     * @param rvrPattern regular expression to be matched with {@code token}
+     * @param rvrPttrn regular expression to be matched with {@code token}
      * @return the translation of at-runway level visibility information
      */
-    static @NotNull String rvrVisibility(@NotNull String token, String rvrPattern) {
-        initDecode(token, rvrPattern);
+    static @NotNull String rvrVisibility(@NotNull String token, String rvrPttrn) {
+        initTokenDecoder(token, rvrPttrn);
 
         int    slash      = token.indexOf('/');
         String rwyID      = token.substring(1, slash),
@@ -262,7 +432,7 @@ class METARDecoder {
                 break;
             default:
                 if (token.substring(slash)
-                         .matches("/" + vartnPattern + ".*")) {
+                         .matches("/" + vartnPttrn + ".*")) {
                     int _V = token.indexOf('V');
                     String fVis = token.substring(slash + 1, _V),    // the variable visibility value is expected
                            sVis = token.substring(_V + 1, _V + 5);   // to have format nnnnVnnnn where n = [0-9]
@@ -300,11 +470,11 @@ class METARDecoder {
      * correct value.
      *
      * @param token the visibility string to be translated
-     * @param vsbltyPattern regular expression to be matched with {@code token}
+     * @param vsbltyPttrn regular expression to be matched with {@code token}
      * @return the information about visibility using correct units.
      */
-    static @NotNull String visibility(@NotNull String token, String vsbltyPattern) {
-        initDecode(token, vsbltyPattern);
+    static @NotNull String visibility(@NotNull String token, String vsbltyPttrn) {
+        initTokenDecoder(token, vsbltyPttrn);
 
         if (token.equals("9999"))
             return token + ": The visibility is 10 km or more.";
@@ -337,7 +507,7 @@ class METARDecoder {
      * @return {@code windStr} with added explanation.
      */
     static @NotNull String windDirSpd(@NotNull String windStr, String pattern) {
-        initDecode(windStr, pattern);                              //normally the pattern is dddssUU(U) or dddssGssUU(U) where d -> direction, s -> speed and U -> unit char
+        initTokenDecoder(windStr, pattern);                              //normally the pattern is dddssUU(U) or dddssGssUU(U) where d -> direction, s -> speed and U -> unit char
 
         if (windStr.equalsIgnoreCase("00000KT"))
             return "%TOKEN: The wind is calm.".replace("%TOKEN", windStr);
@@ -381,7 +551,7 @@ class METARDecoder {
      * @return the {@code String} which explains the wind variation
      */
     static @NotNull String windVariation(@NotNull String windStr, String pattern) {
-        initDecode(windStr, pattern);
+        initTokenDecoder(windStr, pattern);
 
         int vPos = windStr.indexOf("V");
         String  firstWind   = windStr.substring(0, vPos),
@@ -415,7 +585,7 @@ class METARDecoder {
                .replace("%s", sectionName);
     }
 
-    private static void initDecode(@NotNull String token, @NotNull String pattern) {
+    private static void initTokenDecoder(@NotNull String token, @NotNull String pattern) {
         assert token.matches(pattern);
         if (metarDict.isEmpty()) setMetarDict();
     }
