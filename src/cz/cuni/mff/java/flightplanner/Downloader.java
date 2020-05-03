@@ -25,12 +25,14 @@ public class Downloader {
      * @param airportTarget The airfield for which the METAR data will be gathered.
      *
      * @return Returns the file which contains the METAR weather information for
-     *         selected airport, date and time if available. Returns null, if an
-     *         error occurs.
+     *         selected airport, date and time if available. Returns an empty file,
+     *         if an error occurs.
      */
-    static @Nullable File downloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget) {
+    @NotNull File downloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget) {
 
-        URL page = buildMETARURL(timeFrom.toString(), timeTo.toString(), airportTarget.icaoCode);
+        URL page =  buildMETARURL(timeFrom,
+                                  timeTo,
+                                  airportTarget.icaoCode);
         if (page != null) {
             try {
                 String  line;
@@ -71,7 +73,12 @@ public class Downloader {
             }
         }
 
-        return null;
+        try {
+            return File.createTempFile("empty" + airportTarget.icaoCode, null, null);
+        }
+        catch (IOException e) {
+            return new File(".");
+        }
     }
 
     /**
@@ -82,32 +89,32 @@ public class Downloader {
      *                 in LocalDateTime format (YYYY-MM-DDTHH:MM:SS).
      * @param timeTo   Describes the time until which the data will be downloaded
      *                 in LocalDateTime format (YYYY-MM-DDTHH:MM:SS).
-     * @param icao     The ICAO code for a given airport converted to lower case 4
+     * @param airportCode     The ICAO code for a given airport converted to lower case 4
      *                 letter code.
      */
-    private static @Nullable URL buildMETARURL(@NotNull String timeFrom, @NotNull String timeTo, String icao) {
-        icao = icao.toLowerCase();
-        String yearFrom = timeFrom.substring(0, 4),
-               monthFrom = timeFrom.substring(5, 7),
-               dayFrom = timeFrom.substring(8, 10),
-               hourFrom = timeFrom.substring(11, 13),
-               minFrom = timeFrom.substring(14, 16);
+    @Nullable URL buildMETARURL(@NotNull ZonedDateTime timeFrom, @NotNull ZonedDateTime timeTo, String airportCode) {
 
-        String yearTo = timeTo.substring(0, 4),
-               monthTo = timeTo.substring(5, 7),
-               dayTo = timeTo.substring(8, 10),
-               hourTo = timeTo.substring(11, 13),
-               minTo = timeTo.substring(14, 16);
+        airportCode = airportCode.toLowerCase();
+        String  yearFrom = String.valueOf(timeFrom.getYear()),
+                monthFrom= String.valueOf(timeFrom.getMonth()),
+                dayFrom  = String.valueOf(timeFrom.getDayOfMonth()),
+                hourFrom = String.valueOf(timeFrom.getHour()),
+                minFrom  = String.valueOf(timeFrom.getMinute());
+
+        String  yearTo   = String.valueOf(timeTo.getYear()),
+                monthTo  = String.valueOf(timeTo.getMonth()),
+                dayTo    = String.valueOf(timeTo.getDayOfMonth()),
+                hourTo   = String.valueOf(timeTo.getHour()),
+                minTo    = String.valueOf(timeTo.getMinute());
 
         String sURL = "https://www.ogimet.com/display_metars2.php?lang=en&lugar=&tipo=ALL&ord=REV&nil=NO&fmt=txt&ano=&mes=&day=&hora=&min=&anof=&mesf=&dayf=&horaf=&minf=&send=send";
         sURL = sURL
-                .replaceFirst("lugar=", "lugar=" + icao)    .replaceFirst("ano=", "ano=" + yearFrom)
-                .replaceFirst("mes=", "mes=" + monthFrom)   .replaceFirst("day=", "day=" + dayFrom)
-                .replaceFirst("hora=", "hora=" + hourFrom)  .replaceFirst("min=", "min=" + minFrom)
-                .replaceFirst("anof=", "anof=" + yearTo)    .replaceFirst("mesf=", "mesf=" + monthTo)
-                .replaceFirst("dayf=", "dayf=" + dayTo)     .replaceFirst("horaf=", "horaf=" + hourTo)
-                .replaceFirst("minf=", "minf=" + minTo);
-
+                .replaceFirst("lugar=", "lugar=" + airportCode) .replaceFirst("ano=",  "ano="   + yearFrom)
+                .replaceFirst("mes=",   "mes=" + monthFrom)     .replaceFirst("day=",  "day="   + dayFrom )
+                .replaceFirst("hora=",  "hora=" + hourFrom)     .replaceFirst("min=",  "min="   + minFrom )
+                .replaceFirst("anof=",  "anof=" + yearTo)       .replaceFirst("mesf=", "mesf="  + monthTo )
+                .replaceFirst("dayf=",  "dayf=" + dayTo)        .replaceFirst("horaf=","horaf=" + hourTo  )
+                .replaceFirst("minf=",  "minf=" + minTo);
         try {
             return new URL(sURL);
         } catch (MalformedURLException e) {
@@ -121,7 +128,7 @@ public class Downloader {
      * @param fileName = Name of the new file.
      * @return = Returns new file with path to current directory and fileName.
      */
-    public static @NotNull File fileFromPathCreator(@NotNull String fileName) {
+    static @NotNull File fileFromPathCreator(@NotNull String fileName) {
         File currentDir = new File("");
         String part = currentDir.getAbsolutePath() + File.separator + fileName;
         return new File(part);

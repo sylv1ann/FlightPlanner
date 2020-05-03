@@ -4,7 +4,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
 
@@ -53,32 +52,6 @@ public class Airport {
     }
 
     /**
-     * Wrapper around ftTomConverter(double) method. Casts the {@code arg}
-     * string to double and converts it using {@code ftTomConverter(double)}.
-     * @param arg Argument to be parsed and converted.
-     * @param constant the constant multiplied to the {@code arg}
-     * @return converted value from {@code arg}
-     * @see #constantConverter(double, double)
-     */
-    static @NotNull String constantConverter(String arg, double constant) {
-        try {
-            double argNum = constantConverter(Double.parseDouble(arg), constant);
-            return new DecimalFormat("#.##").format(argNum);
-        } catch (NumberFormatException ignored) {
-            return String.valueOf(Double.NaN);
-        }
-    }
-
-    /**
-     * Feet to meters converter.
-     * @param arg The value in feet to be converted.
-     * @return Returns the {@code arg} parameter value in meters.
-     */
-    static double constantConverter(double arg, double constant) {
-        return arg * constant;
-    }
-
-    /**
      * The method prompts the user to enter all the airports to be searched for
      * and creates a list of provided strings which are separated by any non-letter
      * character.
@@ -101,7 +74,7 @@ public class Airport {
             System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
             fields = DialogCenter.getInput(false).split("[^A-Za-z]+");
             result.addAll(Arrays.asList(fields));
-        } while (DialogCenter.getResponse(null,"Do you wish to enter more airports? (Y/n): ", "Y", true));
+        } while (DialogCenter.getResponse(null,"Do you wish to enter more airports? %OPT: ", "Y", true));
         return result;
     }
 
@@ -134,7 +107,7 @@ public class Airport {
         aptsToSearch.removeIf(String::isBlank);
 
         for (String apt : aptsToSearch) {                                       //iterates through all entries typed by user supposing them being airport codes or names
-            List<Airport> matchedApts = new LinkedList<>();               //creates new list of airports that match current entry of the list
+            List<Airport> matchedApts = new LinkedList<>();                     //creates new list of airports that match current entry of the list
 
             for (Airport airport : airportsList) {
                 if (airport.icaoCode.equalsIgnoreCase(apt)         ||
@@ -148,7 +121,7 @@ public class Airport {
                 case 0:
                     System.out.printf("Error, no airport matched \"%s\" entry.%n", apt);
                     if (DialogCenter.getResponse(null,
-                                                 "Do you wish to retype this entry? (Y/n): ",
+                                                 "Do you wish to retype this entry? %OPT: ",
                                                  "Y",
                                                  false)
                         ) {
@@ -161,7 +134,8 @@ public class Airport {
                 default:
                     System.out.printf("There were multiple matches for entry: \"%s\".%n", apt);
                     if (DialogCenter.getResponse("Do you wish to precise more this entry? ",
-                                                 "You will be only able to search among the airports that matched \"" + apt + "\". (Y/n): ",
+                                                 "You will be only able to search among the airports that matched \"%APT\". %OPT: "
+                                                         .replace("%APT", apt),
                                                  "Y",
                                                  false)
                         ) {
@@ -195,7 +169,8 @@ public class Airport {
 
         if (autoProceed ||
             DialogCenter.getResponse(null,
-                                     "Do you want to show all " + aptsToShow.size() + " entries? (Y/n): ",
+                                     "Do you want to show all %COUNT entries? %OPT: "
+                                             .replace("%COUNT", String.valueOf(aptsToShow.size())),
                                      "Y",
                                      true)
             ) {
@@ -233,9 +208,9 @@ public class Airport {
             while ((line = br.readLine()) != null) {
                 ++linesRead;
                 csvFields = line.split(",", 11);
-                elev = parseNum(csvFields[9]);
-                lat = parseNum(csvFields[7]);
-                longit = parseNum(csvFields[8]);
+                elev = Utilities.parseNum(csvFields[9]);
+                lat = Utilities.parseNum(csvFields[7]);
+                longit = Utilities.parseNum(csvFields[8]);
                 APTCategory cat = APTCategory.valueOf(csvFields[6].trim());
                 String[] runways = csvFields[10].split("RUNWAY,");
                 runways = Arrays.stream(runways).filter(x -> !x.isBlank()).toArray(String[]::new);
@@ -248,19 +223,4 @@ public class Airport {
         }
     }
 
-    /**
-     * Parses the {@code String} parameter supposed to be double number. Used
-     * primarily in order to avoid code repetition. The value is expected to be
-     * positive.
-     * @param strNum The string to be parsed.
-     * @return Double number value of {@code strNum} parameter or -1.0 if something
-     *         if something goes wrong.
-     */
-    private static double parseNum(String strNum) {
-        double num;
-        try { num = Double.parseDouble(strNum); }
-        catch (NumberFormatException e) { num = -1.0; }
-
-        return num;
-    }
 }

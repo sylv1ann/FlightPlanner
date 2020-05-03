@@ -32,7 +32,8 @@ public class GetAirportInfoPlugin implements Plugin {
         final double feetMeter = 0.3048;
         boolean autoOutputManagement =
                 DialogCenter.getResponse(null,
-                                         "Do you want the " + this.keyword() + " output to be managed automatically? (Y/n): ",
+                                         "Do you want the %KEYWORD output to be managed automatically? %OPT: "
+                                                 .replace("%KEYWORD", this.keyword()),
                                          "Y",
                                          true
                                         );
@@ -68,7 +69,7 @@ public class GetAirportInfoPlugin implements Plugin {
             pr.printf("The coordinates of %s are: %.4f, %.4f and its elevation is: %.0f feet (%.1f meters above sea level).%n",
                         apt.Name,       apt.geoLat,
                         apt.geoLong,    apt.elevation,
-                        Airport.constantConverter(apt.elevation, feetMeter)
+                        Utilities.constantConverter(apt.elevation, feetMeter)
                      );
             String appendChar =
                     apt.runways.length > 1
@@ -80,8 +81,8 @@ public class GetAirportInfoPlugin implements Plugin {
                 String[] fields = rwy.split(",", -1);
                 pr.printf("Runway identification is: %s/%s.%n", fields[5], fields[11]);
                 pr.printf("    It's length is: %s feet (%.1f meters) and width: %s feet (%.1f meters).%n",
-                          fields[0], Airport.constantConverter(Double.parseDouble(fields[0]), feetMeter),
-                          fields[1], Airport.constantConverter(Double.parseDouble(fields[1]), feetMeter)
+                          fields[0], Utilities.constantConverter(Double.parseDouble(fields[0]), feetMeter),
+                          fields[1], Utilities.constantConverter(Double.parseDouble(fields[1]), feetMeter)
                          );
             }
             pr.printf("------------ End of information about %s airport.------------%n%n", apt.icaoCode);

@@ -28,17 +28,18 @@ public class GetWeatherInfoPlugin implements Plugin {
     @Override
     public void action() {
         LocalDateTime fromTime, toTime;
+        Downloader dwnldr = new Downloader();
+        METARDecoder weatherProcessor = new METARDecoder();
 
         boolean autoOutputManagement =
                 DialogCenter.getResponse(null,
-                                         "Do you want the " +
-                                                 this.keyword()     +
-                                                 " output to be managed automatically? (Y/n): ",
+                                         "Do you want the %KEYWORD output to be managed automatically? %OPT: "
+                                                 .replace("%KEYWORD", this.keyword()),
                                          "Y",
                                          true
                                         );
         if (DialogCenter.getResponse(null,
-                                     "Do you want to precise the date and time for the output? (Y/n): ",
+                                     "Do you want to precise the date and time for the output? %OPT: ",
                                      "Y",
                                      true
                                     )
@@ -58,7 +59,6 @@ public class GetWeatherInfoPlugin implements Plugin {
         ZonedDateTime utcToTime   =
                 toTime  .atZone(ZoneId.systemDefault())
                         .withZoneSameInstant(ZoneId.of("UTC"));
-
         List<File>      downloadedMETARs = new ArrayList<>();
         List<Airport>   foundAirports =
                           Airport.searchAirports(null,false);
@@ -67,34 +67,42 @@ public class GetWeatherInfoPlugin implements Plugin {
                  DialogCenter.chooseOutputForm("", false,
                                                null );
         for (Airport apt : foundAirports) {
-
+            File aptMETAR_raw =
+                    dwnldr.downloadMETAR(utcFromTime, utcToTime,
+                            apt);
 
             if (!autoOutputManagement) {
                 outStream =
-                    DialogCenter.chooseOutputForm(  " for " + apt.icaoCode + " airport",
-                                                    true,
-                                                    apt.icaoCode + "_METAR");
+                    DialogCenter.chooseOutputForm(" for %ICAO airport"
+                                                      .replace("%ICAO", apt.icaoCode),
+                                                  true,
+                                                  apt.icaoCode + "_METAR");
             }
             else {
                 if (outStream instanceof FileOutputStream) {
                     outStream =
-                        DialogCenter.setFileOutputStream(false,apt.icaoCode + "_METAR");
+                        DialogCenter.setFileOutputStream(false, "%ICAO_METAR".replace("%ICAO",apt.icaoCode));
+                    aptMETAR_raw.deleteOnExit();
                 }
             }
-
-            File aptMETAR =
-                    Downloader.downloadMETAR(utcFromTime, utcToTime,
-                            apt);
-
             PrintStream pr = new PrintStream(outStream);
+            if (aptMETAR_raw.getName().startsWith("empty") ||
+                !DialogCenter.getResponse(  null,
+                                            "Do you want to keep the RAW data file? %OPT: ",
+                                            "Y",
+                                            true)
+               ) {
+                aptMETAR_raw.deleteOnExit();
+            }
 
-            try (BufferedReader br =
-                     new BufferedReader(new FileReader(Objects.requireNonNull(aptMETAR)))) {
-                String line;
-                while ((line = br.readLine()) !=  null) {
-                 pr.println(line);
-                }
-            } catch (IOException ignored) { }
+            if (DialogCenter.getResponse(null,
+                                         "Do you want to print the file with raw data? %OPT: ",
+                                         "Y",
+                                         true)) {
+                printRawDataFile(aptMETAR_raw, pr);
+            }
+
+            weatherProcessor.fileDecode(aptMETAR_raw, pr);
         }
     }
 
@@ -155,7 +163,7 @@ public class GetWeatherInfoPlugin implements Plugin {
                       resultTime;
 
         try {
-            System.out.println("Incorrect date/time format will result in taking the current time - 24 hours.");
+            System.out.println("Incorrect date/time format will result in taking the current time.");
             System.out.printf("Please enter the \"to\" date in the following format: %s: ", dateTimeStrFormat);
             LocalDateTime chosenDateTime =
                     LocalDateTime.parse(DialogCenter.getInput(false),
@@ -179,6 +187,17 @@ public class GetWeatherInfoPlugin implements Plugin {
         }
 
         return resultTime;
+    }
+
+    void printRawDataFile(@NotNull File file, PrintStream printer) {
+        try (BufferedReader br =
+                     new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) !=  null) {
+                printer.println(line);
+            }
+            printer.printf("%n");
+        } catch (IOException ignored) { }
     }
 
 }
