@@ -1,7 +1,7 @@
 package cz.cuni.mff.java.flightplanner;
 
-import org.jetbrains.annotations.*;
 import java.net.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.io.*;
 import java.time.*;
@@ -24,47 +24,45 @@ public class Downloader {
      *
      * @param airportTarget The airfield for which the METAR data will be gathered.
      *
-     * @return Returns the file which contains the METAR weather information for
+     * @return The file which contains the METAR weather information for
      *         selected airport, date and time if available. Returns an empty file,
      *         if an error occurs.
+     *
+     * @throws IOException if an error occurs while creating a file
      */
-    @NotNull File downloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget) {
-
+    @NotNull File downloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget)
+            throws IOException {
         URL page =  buildMETARURL(timeFrom,
                                   timeTo,
                                   airportTarget.icaoCode);
         if (page != null) {
             try {
                 String  line;
-                boolean websiteBody = false;
                 File    targetFile = File.createTempFile(airportTarget.icaoCode,      //creates temporary file in current directory with icao code prefix in its name
-                                                         ".txt",
+                                                         ".csv",
                                                          new File(".")
                                                         );
-                targetFile.deleteOnExit(); //deletes created files after program ends
+                targetFile.deleteOnExit(); // on-demand deletion of created file after program ends
 
-                try (BufferedWriter wr = new BufferedWriter(new FileWriter(targetFile));
+                try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(targetFile));
                      BufferedInputStream bis = new BufferedInputStream(page.openStream());
                      BufferedReader br = new BufferedReader(new InputStreamReader(bis))) {
 
                     String finalAirfieldICAO = airportTarget.icaoCode;
-                    Thread t = new Thread(() -> System.out.printf("%n... %s METAR download in process ...%n%n", finalAirfieldICAO.toUpperCase()));
+                    boolean threadStarted = false;
+                    Thread t = new Thread(() ->
+                            System.out.printf("%n... %s METAR download in process ...%n%n", finalAirfieldICAO.toUpperCase()));
 
-                    while ((line = br.readLine()) != null) {            //while loop which ensures that only correct part of the website is
-                        if (!websiteBody && "<pre>".equals(line)) {     //written to the tmp file.
-                            websiteBody = true;
-                            t.start();                                          //Another thread informs the user about currently downloaded webpage.
-                            continue;
+                    while ((line = br.readLine()) != null) {
+                        if (!threadStarted) {
+                            t.start();
+                            threadStarted = true;
                         }
-                        if (websiteBody && "</pre>".equals(line)) {    //Skips the part before the <pre> tag and after the </pre> tag.
-                            websiteBody = false;
-                            continue;
-                        }
-                        if (websiteBody) {
-                            wr.append(line).append("\n");
-                        }
+                        writer.write(line);
+                        writer.append("\n");
                     }
-                    return targetFile;
+                    bis.close();
+                    return targetFile;                              // the point where the method normally ends
                 } catch (IOException ignore) {
                     System.out.println("An error occurred.");
                 }
@@ -73,12 +71,17 @@ public class Downloader {
             }
         }
 
-        try {
-            return File.createTempFile("empty" + airportTarget.icaoCode, null, null);
-        }
-        catch (IOException e) {
-            return new File(".");
-        }
+        File emptyFile =
+                File.createTempFile("empty_%ICAO"
+                                          .replace("%ICAO", airportTarget.icaoCode),
+                                    null,
+                                    null);
+             emptyFile.deleteOnExit();
+        return emptyFile;
+    }
+
+    @NotNull File noDownloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget) {
+        return new File("LZIB_METAR_backup.csv");
     }
 
     /**
@@ -94,27 +97,15 @@ public class Downloader {
      */
     @Nullable URL buildMETARURL(@NotNull ZonedDateTime timeFrom, @NotNull ZonedDateTime timeTo, String airportCode) {
 
-        airportCode = airportCode.toLowerCase();
-        String  yearFrom = String.valueOf(timeFrom.getYear()),
-                monthFrom= String.valueOf(timeFrom.getMonth()),
-                dayFrom  = String.valueOf(timeFrom.getDayOfMonth()),
-                hourFrom = String.valueOf(timeFrom.getHour()),
-                minFrom  = String.valueOf(timeFrom.getMinute());
+        airportCode = airportCode.toUpperCase();
+        final String datePattern = "yyyyMMddHHmm";
+              String  fromDate   = timeFrom.format(DateTimeFormatter.ofPattern(datePattern)),
+                      toDate     = timeTo.format(DateTimeFormatter.ofPattern(datePattern));
 
-        String  yearTo   = String.valueOf(timeTo.getYear()),
-                monthTo  = String.valueOf(timeTo.getMonth()),
-                dayTo    = String.valueOf(timeTo.getDayOfMonth()),
-                hourTo   = String.valueOf(timeTo.getHour()),
-                minTo    = String.valueOf(timeTo.getMinute());
-
-        String sURL = "https://www.ogimet.com/display_metars2.php?lang=en&lugar=&tipo=ALL&ord=REV&nil=NO&fmt=txt&ano=&mes=&day=&hora=&min=&anof=&mesf=&dayf=&horaf=&minf=&send=send";
-        sURL = sURL
-                .replaceFirst("lugar=", "lugar=" + airportCode) .replaceFirst("ano=",  "ano="   + yearFrom)
-                .replaceFirst("mes=",   "mes=" + monthFrom)     .replaceFirst("day=",  "day="   + dayFrom )
-                .replaceFirst("hora=",  "hora=" + hourFrom)     .replaceFirst("min=",  "min="   + minFrom )
-                .replaceFirst("anof=",  "anof=" + yearTo)       .replaceFirst("mesf=", "mesf="  + monthTo )
-                .replaceFirst("dayf=",  "dayf=" + dayTo)        .replaceFirst("horaf=","horaf=" + hourTo  )
-                .replaceFirst("minf=",  "minf=" + minTo);
+        String sURL =  "http://www.ogimet.com/cgi-bin/getmetar?icao=%ICAO&begin=%FROM&end=%TO"
+                        .replace("%ICAO", airportCode)
+                        .replace("%FROM", fromDate)
+                        .replace("%TO", toDate);
         try {
             return new URL(sURL);
         } catch (MalformedURLException e) {

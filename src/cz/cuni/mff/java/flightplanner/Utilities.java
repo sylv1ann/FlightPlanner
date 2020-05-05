@@ -1,7 +1,5 @@
 package cz.cuni.mff.java.flightplanner;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.text.DecimalFormat;
 
 /**
@@ -71,5 +69,14 @@ public class Utilities {
         catch (NumberFormatException e) { num = Double.NaN; }
 
         return num;
+    }
+
+    /**
+     * @param sectionName the argument to be put between the separator
+     * @return the constant separator
+     */
+    static @NotNull String sectionSeparator(String sectionName) {
+        return "----------------------------------------------- %s ------------------------------------------------"
+               .replace("%s", sectionName);
     }
 }

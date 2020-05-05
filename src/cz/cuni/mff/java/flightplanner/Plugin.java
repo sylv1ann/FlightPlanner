@@ -1,6 +1,5 @@
 package cz.cuni.mff.java.flightplanner;
 
-import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

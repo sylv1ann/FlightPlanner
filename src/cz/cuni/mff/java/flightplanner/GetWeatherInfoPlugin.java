@@ -1,6 +1,5 @@
 package cz.cuni.mff.java.flightplanner;
 
-import org.jetbrains.annotations.NotNull;
 import java.io.*;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -45,12 +44,12 @@ public class GetWeatherInfoPlugin implements Plugin {
                                     )
            ) {
             DateTimeFormatter format =
-                        DateTimeFormatter.ofPattern(dateTimeStrFormat);
+                                DateTimeFormatter.ofPattern(dateTimeStrFormat);
             fromTime = getFromDateTime(format);
-            toTime = getToDateTime(fromTime, format);
+            toTime   = getToDateTime(fromTime, format);
         } else {
             fromTime = LocalDateTime.now().minusDays(1);
-            toTime = LocalDateTime.now();
+            toTime   = LocalDateTime.now();
         }
 
         ZonedDateTime utcFromTime =
@@ -61,48 +60,71 @@ public class GetWeatherInfoPlugin implements Plugin {
                         .withZoneSameInstant(ZoneId.of("UTC"));
         List<File>      downloadedMETARs = new ArrayList<>();
         List<Airport>   foundAirports =
-                          Airport.searchAirports(null,false);
-        if (autoOutputManagement)
+                          Airport.searchAirports(null,null,false);
+        if (autoOutputManagement) {
             outStream =
-                 DialogCenter.chooseOutputForm("", false,
-                                               null );
-        for (Airport apt : foundAirports) {
-            File aptMETAR_raw =
-                    dwnldr.downloadMETAR(utcFromTime, utcToTime,
-                            apt);
+                    DialogCenter.chooseOutputForm("", false,
+                                                  null);
+        }
 
-            if (!autoOutputManagement) {
-                outStream =
-                    DialogCenter.chooseOutputForm(" for %ICAO airport"
-                                                      .replace("%ICAO", apt.icaoCode),
-                                                  true,
-                                                  apt.icaoCode + "_METAR");
-            }
-            else {
-                if (outStream instanceof FileOutputStream) {
-                    outStream =
-                        DialogCenter.setFileOutputStream(false, "%ICAO_METAR".replace("%ICAO",apt.icaoCode));
-                    aptMETAR_raw.deleteOnExit();
-                }
-            }
-            PrintStream pr = new PrintStream(outStream);
-            if (aptMETAR_raw.getName().startsWith("empty") ||
-                !DialogCenter.getResponse(  null,
-                                            "Do you want to keep the RAW data file? %OPT: ",
-                                            "Y",
-                                            true)
-               ) {
-                aptMETAR_raw.deleteOnExit();
-            }
+        boolean deleteFilesOnExit = false;
+        for (Airport apt : foundAirports) {
 
             if (DialogCenter.getResponse(null,
-                                         "Do you want to print the file with raw data? %OPT: ",
-                                         "Y",
-                                         true)) {
-                printRawDataFile(aptMETAR_raw, pr);
+                    "Do you want to delete the RAW data file(s)? %OPT: ",
+                    "Y",
+                    true)
+            ) {
+                deleteFilesOnExit = true;
             }
 
-            weatherProcessor.fileDecode(aptMETAR_raw, pr);
+            try {
+                File aptMETAR_raw;
+                if (DialogCenter.getResponse(null, "Do you debug? %OPT: ","Y", false)) {
+                    aptMETAR_raw = dwnldr.noDownloadMETAR(utcFromTime, utcToTime,apt);
+                } else {
+                    aptMETAR_raw =
+                            dwnldr.downloadMETAR(utcFromTime, utcToTime,
+                                    apt);
+                }
+                if (deleteFilesOnExit || aptMETAR_raw.getName().startsWith("empty_"))
+                    aptMETAR_raw.deleteOnExit();
+
+                if (!autoOutputManagement) {
+                    outStream =
+                        DialogCenter.chooseOutputForm(" for %ICAO airport"
+                                                          .replace("%ICAO", apt.icaoCode),
+                                                      true,
+                                                      apt.icaoCode + "_METAR");
+                }
+                else {
+                    if (outStream.getClass().isAssignableFrom(FileOutputStream.class)) {
+                        outStream =
+                                DialogCenter.setFileOutputStream(
+                                        true,
+                                        "%ICAO_METAR".replace("%ICAO",apt.icaoCode)
+                                );
+                    }
+                }
+                PrintStream pr = new PrintStream(outStream);
+
+                if (DialogCenter.getResponse(null,
+                                             "Do you want to print the raw data using the output form chosen previously? %OPT: ",
+                                             "Y",
+                                             true)) {
+                    pr.println(Utilities.sectionSeparator(
+                            "RAW %ICAO FILE"
+                                       .replace("%ICAO",apt.icaoCode))
+                              );
+                    printRawDataFile(aptMETAR_raw, pr);
+                    pr.println(Utilities.sectionSeparator("END RAW FILE"));
+                }
+
+                weatherProcessor.fileDecode(aptMETAR_raw, pr);
+            } catch (IOException e) {
+                System.err.println("An error occured while creating a file with %ICAO METAR data."
+                                   .replace("%ICAO", apt.icaoCode));
+            }
         }
     }
 

@@ -170,6 +170,7 @@ N=north
 NEG=negative
 NO=not available
 NOSIG=no significant change expected
+NSC=No significant clouds are observed below 5000 feet or below the minimum sector altitude (whichever is higher).
 NSW=no significant weather
 OAT=outside air temperature
 OVC=overcast cloud layer (8/8ths coverage)

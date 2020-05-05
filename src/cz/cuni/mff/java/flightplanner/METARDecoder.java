@@ -1,11 +1,8 @@
 package cz.cuni.mff.java.flightplanner;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.io.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,102 +39,91 @@ class METARDecoder {
      * @param printer       The printer used for printing.
      */
     void fileDecode(@NotNull File metarToDecode, @NotNull PrintStream printer) {
-        setMetarDict();
-        boolean inSection = false;
-        int     sectionCount = 0;
-        StringBuilder initInfo = new StringBuilder();
+        checkDictionary();
 
+        System.out.println(Utilities.sectionSeparator("METAR DECODING"));
         try (BufferedReader br = new BufferedReader(new FileReader(metarToDecode))) {
-             String line, sectionBound = null;
+             String line;
 
-             while ((line = br.readLine()) != null && !line.startsWith("# No METAR/SPECI reports")) {
-                 if (line.isEmpty()) continue;
-                 if (sectionBound == null)
-                     sectionBound = String.valueOf(line.charAt(0)).repeat(3);
-                 if (line.contains(sectionBound)) {
-                     inSection = !inSection;
-                     if (inSection) sectionCount++;
-                     continue;
-                 }
-                 line = line.startsWith("#")
-                         ? line.substring(2) //cuts off the initial "# " on the line
-                         : line;
+            boolean tokenPrint =
+                    DialogCenter.getResponse(
+                            "The tokens may help you understand what token is being decoded.",
+                            "Should the token names be printed too? %OPT: ",
+                            "Y",
+                            true);
 
-                 switch (sectionCount) {
-                     case 1:
-                         do {
-                             if (line.contains("Query")) {
-                                 initInfo.append("The weather information has been downloaded at: %s.\n"
-                                                 .replace("%s", line.substring(line.indexOf("at") + 3)));
-                             } else {
-                                 initInfo.append("The weather information ranges %s.\n"
-                                                .replace("%s",line.substring(line.indexOf("from"))));
-                             }
-                             line = br.readLine();
-                         } while (!line.contains(sectionBound));
-                         inSection = !inSection;
-                         break;
-                     case 2:
-                         initInfo.append(sectionSeparator(line.substring(0, 4))).append("\n");
-                         initInfo.append("Airport location: %s.\n".replace("%s",line));
-                         do {
-                            line = br.readLine();
-                         } while (!line.contains(sectionBound));
-                         inSection = !inSection;
-                         break;
-                     case 3:
-                         printer.println(sectionBound.repeat(5));         //writes string "###############"
-                         do {
-                             line = br.readLine();                              //don't care about text in the section
-                         } while (!line.contains(sectionBound));
-                         inSection = !inSection;
-                         boolean refuseDecode = false,
-                                 metarSectionEnd = false,
-                                 tokenPrint =
-                                    DialogCenter.getResponse(null,
-                                                             "Should the token names be printed too? %OPT: ",
-                                                             "Y",
-                                                             true);
-                         do {
-                             StringBuilder metarEntry = new StringBuilder();
-                             do {
-                                 line = br.readLine();
-                                 if (line.startsWith("# ")) {
-                                     metarSectionEnd = true;
-                                     break;
-                                 }
-                                 metarEntry.append(line.stripLeading()).append(" ");
-                             } while (!line.contains("="));
-                             if (metarSectionEnd) break;
-                             if (!refuseDecode &&
-                                 DialogCenter.getResponse(null,
-                                                          "Do you want \"%METAR\" to be decoded? %OPT: "
-                                                                  .replace("%METAR",metarEntry.toString().strip()),
-                                                          "Y",
-                                                          false)) {
-                                 decode(metarEntry.toString().replace("=", ""),
-                                        printer,
-                                        initInfo.toString(),
-                                        tokenPrint);
-                                 printer.printf("%n");
-                             } else refuseDecode = true;
-                         } while (!line.contains(sectionBound));
-                         break;
-                     case 4:
-                         printer.println("FINISH THE 4th SECTION");
-                         break;
-                     default:
-                         printer.println("Section num" + sectionCount);
-                 }
-             }
-             if (line != null) {
-                 //then the only reason for the while loop to have ended is that the line ~= "# No METAR/SPECI reports ..."
-                 //which means that there's no METAR report in the database
-                 printer.println(line.substring(line.indexOf("No ")));
-             }
+            System.out.println("All available METAR = %DEFINITION are progressively decoded until you decide not to decode them anymore."
+                               .replace("%DEFINITION", metarDict.get("METAR")));
+
+            while ((line = br.readLine()) != null) {
+                if (line.isEmpty()) continue;
+                StringBuilder metarEntry = new StringBuilder(line);
+
+                while (line != null && !line.endsWith("=")) {
+                    line = br.readLine();
+                    metarEntry.append(line);
+                }
+
+                String[] tidyMETAR = csvMETARtidy(metarEntry.toString()
+                                                                     .replace("=", "")
+                                                                     .strip());
+                String initInfo = tidyMETAR[0],
+                       finalMetar = tidyMETAR[1],
+                       decision = finalMetar.length() > 80
+                            ? "(METAR too long to display)"
+                            : finalMetar;
+
+                if (DialogCenter.getResponse(null,
+                                             "Do you want \"%DECISION\" to be decoded? %OPT: "
+                                                     .replace("%DECISION", decision),
+                                             "Y",
+                                             false)
+                   ) {
+                    metarEntryDecode(finalMetar, printer,
+                                     initInfo, tokenPrint);
+                    printer.printf("%n");
+                } else break;
+            }
+            System.out.println("No more METARs for the specified period are available.");
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("File reading failed. The METAR will not be decoded.");
         }
+    }
+
+    /**
+     * Processes the input METAR entry in .csv format and separates the metadata
+     * from the actual METAR.
+     * @param metarEntry a METAR unit and its metadata in .csv format
+     * @return The String array of length 2, which contains the metadata on its
+     *         first position and the METAR itself on the second position.
+     */
+    private String[] csvMETARtidy(@NotNull String metarEntry) {
+        String auto = "", airport = "";
+        boolean autoMetar = metarEntry.contains("AUTO");
+        if (autoMetar) {
+            metarEntry = metarEntry.replaceFirst("AUTO", "");
+            auto = "automatically, with no human intervention or oversight ";
+        }
+        String[] fields = metarEntry.split(",");
+        List<Airport> metarConcernedApts = Airport.searchAirports(null, List.of(fields[0]), false);
+        for (Airport apt : metarConcernedApts) {
+            airport = "Location: %ICAO\n\t%LOC\n\tLatitude: %LAT\n\tLongtitude: %LONG\n"
+                      .replace("%ICAO", apt.icaoCode)
+                      .replace("%LOC", apt.name + ", " + apt.municipality + ", " + apt.countryCode)
+                      .replace("%LAT", String.valueOf(apt.geoLat))
+                      .replace("%LONG", String.valueOf(apt.geoLong));
+        }
+        String initInfo = "%AIRPORTThe %TYPE was issued %AUTOthe %DAY-%MONTH-%YEAR at %HOUR:%MIN UTC time."
+                          .replace("%AIRPORT", airport)
+                          .replace("%AUTO",auto)
+                          .replace("%DAY", fields[3])
+                          .replace("%MONTH", fields[2])
+                          .replace("%YEAR", fields[1])
+                          .replace("%HOUR", fields[4])
+                          .replace("%MIN", fields[5]),
+               metar = fields[6];
+
+        return new String[] {initInfo, metar};
     }
 
     /**
@@ -147,33 +133,16 @@ class METARDecoder {
      *
      * @param metarEntry The actual METAR unit which will be decoded.
      * @param printer The printer used for printing.
-     * @param initInfo The initial information which will be printed before the
-     *                 decoded METAR.
      * @param tokenPrint The flag which indicates whether each token should be
      *                   highlighted before its translation.
      */
-    void decode(@NotNull String metarEntry, @NotNull PrintStream printer, String initInfo, boolean tokenPrint) {
-        boolean autoMetar = metarEntry.contains("AUTO");
-        if (autoMetar)
-            metarEntry = metarEntry.replaceFirst("AUTO", "");
+    void metarEntryDecode(@NotNull String metarEntry, @NotNull PrintStream printer, String initInfo, boolean tokenPrint) {
 
         String[] tokens = metarEntry.split("\\s+");
-        String   timeAndDate = tokens[0],
-                 metarType   = tokens[1];
+        printer.println(Utilities.sectionSeparator(metarEntry));
+        printer.println(initInfo.replace("%TYPE", tokens[0]));
 
-        LocalDateTime metarIssuedAt =
-                LocalDateTime.parse(tokens[0],
-                                    DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
-
-        printer.println(initInfo);
-        printer.printf("The %s was issued %son %s-%s-%s at %s:%s UTC time.%n",
-                       metarType,
-                       autoMetar ? "automatically, with no human intervention or oversight " : "",
-                       metarIssuedAt.getDayOfMonth(),  metarIssuedAt.getMonth(),
-                       metarIssuedAt.getYear(),        metarIssuedAt.getHour(),
-                       metarIssuedAt.getMinute());
-
-        for (int i = 4; i < tokens.length; i++) { //0 -> dateTime, 1 -> metar type, 2 -> airport (already noted), 3 -> day of (unspecified) month and time in zulu
+        for (int i = 3; i < tokens.length; i++) { //0 -> dateTime, 1 -> metar type, 2 -> airport (already noted), 3 -> day of (unspecified) month and time in zulu
             if (tokens[i].matches(windPttrn)) {    //wind direction and speed information
                 printer.println(windDirSpd(tokens[i], windPttrn, tokenPrint));
                 continue;
@@ -237,6 +206,7 @@ class METARDecoder {
                 printer.println(tokens[i] + ": Unknown token.");
             }
         }
+        printer.println(Utilities.sectionSeparator("END OF METAR"));
     }
 
     /**
@@ -351,7 +321,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} parameter which represents the temperature
      * encoding and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param rwy the runway number
      * @return the runway identificator represented in the {@code rwy}
@@ -373,7 +342,7 @@ class METARDecoder {
     }
 
     /**
-     * The method which decodes the {@code arg} representing the braking coefficient
+     * The method which decodes the {@code arg} representing the braking coefficient.
      *
      * @param arg the braking action to be explained
      * @return the value of the braking action
@@ -408,7 +377,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} parameter which represents the sea-level
      * pressure (SLP) and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param token the SLP to be translated
      * @param pattern regular expression to be matched with {@code token}
@@ -442,7 +410,6 @@ class METARDecoder {
     /**
     * This method explains the warning of possible wind shear existence in the
     * vicinity of the airport.
-    * The method should function as-is even when called in unit tests.
     *
     * @param token wind-shear token to be translated
     * @param pattern regular expression to be matched with {@code token}
@@ -466,7 +433,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} parameter which represents the pressure
      * information and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param token encoded pressure information to be translated
      * @param pattern regular expression to be matched with {@code token}
@@ -498,7 +464,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} parameter which represents the vertical
      * visibility and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param token the vertical visibility representation to be translated
      * @param pattern regular expression to be matched with {@code token}
@@ -521,7 +486,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} the cloud type and height representation
      * and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param token the clound representation to be translated
      * @param pattern regular expression to be matched with {@code token}
@@ -564,7 +528,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} parameter which represents the temperature
      * encoding and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param token the temperature to be translated
      * @param pattern regular expression to be matched with {@code token}
@@ -592,7 +555,6 @@ class METARDecoder {
     /**
      * This method takes {@code token} parameter which represents the weather
      * phenomenon abbreviation and translates it accordingly.
-     * The method should function as-is even when called in unit tests.
      *
      * @param token is the weather token to be decoded
      * @param pattern regular expression to be matched with {@code token}
@@ -756,7 +718,7 @@ class METARDecoder {
      * @return {@code token} with added explanation.
      */
     static @NotNull String windDirSpd(@NotNull String token, String pattern, boolean tokenPrint) {
-        String init = initTokenDecoder(token, pattern, tokenPrint);                              //normally the pattern is dddssUU(U) or dddssGssUU(U) where d -> direction, s -> speed and U -> unit char
+        String init = initTokenDecoder(token, pattern, tokenPrint);  //normally the pattern is dddssUU(U) or dddssGssUU(U) where d -> direction, s -> speed and U -> unit char
 
         if (token.equalsIgnoreCase("00000KT"))
             return "%TOKEN: The wind is calm.".replace("%TOKEN", token);
@@ -829,12 +791,11 @@ class METARDecoder {
     }
 
     /**
-     * @param sectionName the argument to be put between the separator
-     * @return the constant separator
+     * The method only checks whether the dictionary is empty. In such a case,
+     * the method for dictionary initialization is called.
      */
-    static @NotNull String sectionSeparator(String sectionName) {
-        return "----------------------------------------------- %s ------------------------------------------------"
-               .replace("%s", sectionName);
+    private static void checkDictionary() {
+        if (metarDict.isEmpty()) setMetarDict();
     }
 
     /**
@@ -850,9 +811,9 @@ class METARDecoder {
     static @NotNull String initTokenDecoder(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String result = "";
         assert token.matches(pattern);
-        if (metarDict.isEmpty()) setMetarDict();
+        checkDictionary();
         if (tokenPrint) {
-            return sectionSeparator(token) + "\n";
+            return Utilities.sectionSeparator(token) + "\n";
         }
         return result;
     }

@@ -38,7 +38,7 @@ public class GetAirportInfoPlugin implements Plugin {
                                          true
                                         );
         List<Airport> foundAirports =
-                Airport.searchAirports(null,false);
+                Airport.searchAirports(null,null, false);
 
         if (autoOutputManagement)
             outStream = DialogCenter.chooseOutputForm("",
@@ -49,7 +49,8 @@ public class GetAirportInfoPlugin implements Plugin {
 
             if (!autoOutputManagement)
                 outStream =
-                        DialogCenter.chooseOutputForm(" for " + apt.icaoCode + " airport",
+                        DialogCenter.chooseOutputForm(" for %ICAO airport"
+                                                          .replace("%ICAO", apt.icaoCode),
                                                       true,
                                                       apt.icaoCode + "_INFO"
                                                      );
@@ -62,12 +63,12 @@ public class GetAirportInfoPlugin implements Plugin {
                       "The ICAO (International civil aviation organization) code of this airport is: %s%n" +
                       "The %s airport is situated in: %s, %s.%n" +
                       "It is a %s.%n",  apt.icaoCode,       apt.icaoCode,
-                                        apt.Name,           apt.municipality,
+                                        apt.name,           apt.municipality,
                                         apt.countryCode,    apt.cat.name().replace("_", " size ")
                      );
 
             pr.printf("The coordinates of %s are: %.4f, %.4f and its elevation is: %.0f feet (%.1f meters above sea level).%n",
-                        apt.Name,       apt.geoLat,
+                        apt.name,       apt.geoLat,
                         apt.geoLong,    apt.elevation,
                         Utilities.constantConverter(apt.elevation, feetMeter)
                      );
