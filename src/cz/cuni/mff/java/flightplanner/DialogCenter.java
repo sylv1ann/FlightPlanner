@@ -1,6 +1,5 @@
 package cz.cuni.mff.java.flightplanner;
 
-import org.jetbrains.annotations.*;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -14,17 +13,11 @@ public class DialogCenter {
 
     private static final String projectPackageName = "cz.cuni.mff.java.flightplanner";
 
-    /**
-     * The default value of filePath which indicates the current directory.
-     */
-    private static String filePath = ".";
-
     public static void main(String[] args) {
 
         List<Plugin> allPlugs, activePlugs;
 
         allPlugs = Plugin.loadAllPlugins(projectPackageName);
-        Airport.setAirportsDatabase();
         showMainMenu();
         while (true) {
             activePlugs = choosePlugins(allPlugs);
@@ -40,7 +33,7 @@ public class DialogCenter {
      * This method prints initial text information about Flight Planner.
      */
     private static void showMainMenu() {
-        System.out.println("Welcome to this amazing Flight Planner.");
+        System.out.println("Welcome to this Flight Planner.");
         System.out.println("You will be provided with several possibilities to show/construct your entire flight plan or its parts.\n");
     }
 
@@ -69,7 +62,7 @@ public class DialogCenter {
 
         System.out.printf("Please type your choice of output form (screen/file)%s: ", arg);
 
-        switch (getInput(false)) {
+        switch (getInput(false, false)) {
             case "file":
                 result = setFileOutputStream(prompt, fileName);
                 break;
@@ -103,34 +96,60 @@ public class DialogCenter {
     static OutputStream setFileOutputStream(boolean prompt, @Nullable String fileName) {
 
         OutputStream result = System.out; //the output is printed on stdout by default
-        String dirSetting = ".".equals(filePath)
-                ? "current"
-                : "previously used";
+        String curDir = System.getProperty("user.dir"),
+               outPath = null;
 
-        if (prompt && getResponse("If you want to choose the location for the file, please type \"Y\".",
-                                  "If not, type anything else and  %DIR directory will be used: "
-                                          .replace("%DIR", dirSetting),
-                                  "Y", true)) {
-            System.out.print("Please enter the absolute path of the destination directory: ");
-            filePath = getInput(false);
+        if (prompt) {
+            System.out.printf("%n%s%n%s%n%s%n%s%n%s",
+                    "You can now select the destination directory for the file.",
+                    "If you want to do so, please enter the (absolute/relative) path.",
+                    "If you want to get the current directory for relative path usage, enter \"pwd\".",
+                    "Any other choice will result in using the default \"output\" directory for the file(s).",
+                    "Enter your choice: ");
+            outPath = getInput(true, true);
+            if ("pwd".equalsIgnoreCase(outPath)) {
+                System.out.println(FilesHandler.pwd());
+                System.out.print("Now please enter the path: ");
+                outPath = getInput(true, true);
+            }
         }
 
-        String completeFileName = "";
-        if (fileName != null)
-            completeFileName = fileName + "_" + new SimpleDateFormat("yyyy-MM-ddHHmmss").format(new Date()) + ".txt";
-
-        try {
-            if (".".equals(filePath)) {//default setting
-                if (fileName == null) result = new FileOutputStream(File.createTempFile("tmp", null, null));
-                else result = new FileOutputStream(Downloader.fileFromPathCreator(completeFileName)); //
+        String completeFileName = "",
+               dateTime = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        if (fileName != null) {
+            completeFileName = "%FILENAME_%DATETIME.%EXTENSION"
+                               .replace("%FILENAME", fileName)
+                               .replace("%DATETIME", dateTime)
+                               .replace("%EXTENSION", "txt");
+        } else {
+            try {
+                File temporary = File.createTempFile("temporary_file_%DATETIME"
+                                                           .replace("%DATETIME", dateTime),
+                                                     null, null);
+                temporary.deleteOnExit();
+                return new FileOutputStream(temporary);
+            } catch (FileNotFoundException e) {
+                System.err.println("The file was not found or does not exist.");
+            } catch (IOException e) {
+                System.err.println("An error during the file creation has occurred.");
             }
-            else result = new FileOutputStream(new File(filePath + File.separator + completeFileName));
-        } catch (FileNotFoundException e) {
-            System.out.println("Something went wrong. Please try again.");
-            result = setFileOutputStream(true, fileName); //if this method needs to be repeated, user response must be given
-        } catch (IOException ignored) { }
+        }
+        assert fileName != null; // if fileName is null then the result is already returned above
 
-        return result;
+        synchronized (projectPackageName) {
+            try {
+                File output = FilesHandler.createNewFile(outPath, completeFileName);
+                System.out.printf("%n%s%n%s",
+                                  "The file creation was successful.",
+                                  "Th file will be saved in: %FILE"
+                                  .replace("%FILE",output.getAbsolutePath()));
+                return new FileOutputStream(output);
+            } catch (FileNotFoundException e) {
+                System.err.println("The file could not be created in specified directory.");
+                System.err.println("Therefore, screen output will be used.");
+                return result;
+            }
+        }
     }
 
     /**
@@ -162,8 +181,7 @@ public class DialogCenter {
             }
             System.out.print("Please type in all the numbers or parts of keywords of options you want to choose (separate them with commas): ");
             try {
-                line = getInput(false);
-                System.out.printf("%n"); //separates the dialog
+                line = getInput(false, true);
                 if (!line.isBlank()) {
                     options = line.split(",");
                     options = Arrays.stream(options)
@@ -293,10 +311,10 @@ public class DialogCenter {
      *
      * @param blankLineAllowed Flag to indicate whether the empty line will be
      *                         accepted as a correct input to be returned.
-     *
-     * @return Non-null and non-empty {@code String} input given by a user.
+     * @param printNewLine  Flag which separates the following dialog.
+     * @return Non-null {@code String} input given by a user.
      */
-    static @NotNull String getInput(boolean blankLineAllowed) {
+    static @NotNull String getInput(boolean blankLineAllowed, boolean printNewLine) {
         String line;
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         try {
@@ -305,9 +323,10 @@ public class DialogCenter {
             } while (line == null || (!blankLineAllowed && line.isBlank()));
         } catch (IOException e) {
             System.out.println("Something went wrong. Please try again.");
-            line = getInput(blankLineAllowed);
+            line = getInput(blankLineAllowed, printNewLine);
         }
 
+        if (printNewLine) System.out.printf("%n");
         return line;
     }
 
@@ -334,10 +353,8 @@ public class DialogCenter {
         if (blankAllowed )
             autoDecline = "Enter key press will decline automatically.\n";
         System.out.print(autoDecline + question.replace("%OPT", optChoice));
-        String trueAnswer = getInput(blankAllowed).trim();
-        System.out.printf("%n");
+        String trueAnswer = getInput(blankAllowed, true).trim();
         return trueAnswer.startsWith(trueResponse.toUpperCase()) ||
                trueAnswer.startsWith(trueResponse.toLowerCase());
     }
-
 }
