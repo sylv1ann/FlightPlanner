@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.FileHandler;
 
 /**
  * The METARProcessor is the class responsible for parsing, modifying
@@ -52,7 +53,7 @@ class METARDecoder {
                             "Y",
                             true);
 
-            System.out.println("All available METAR = %DEFINITION are progressively decoded until you decide not to decode them anymore."
+            System.out.println("All available METAR = \"%DEFINITION\" are progressively decoded until you decide not to decode them anymore."
                                .replace("%DEFINITION", metarDict.get("METAR")));
 
             while ((line = br.readLine()) != null) {
@@ -84,7 +85,7 @@ class METARDecoder {
                     printer.printf("%n");
                 } else break;
             }
-            System.out.println("No more METARs for the specified period are available.");
+            System.out.println("No more METARs for the specified period are available.\n");
         } catch (IOException e) {
             System.err.println("File reading failed. The METAR will not be decoded.");
         }
@@ -207,6 +208,7 @@ class METARDecoder {
             }
         }
         printer.println(Utilities.sectionSeparator("END OF METAR"));
+        // TODO: 07/05/2020 if the printer is fileoutputstream printer -> write the information about successful writing of metars
     }
 
     /**
@@ -678,10 +680,10 @@ class METARDecoder {
         String init = initTokenDecoder(token, pattern, tokenPrint);
 
         if (token.equals("9999"))
-            return "%INIT: The visibility is 10 km or more."
+            return "%INITVisibility: The visibility is 10 km or more."
                     .replace("%INIT",init);
         if (token.equals("0000"))
-            return "%INIT: The visibility is 50 meters or less."
+            return "%INITVisibility: The visibility is 50 meters or less."
                     .replace("%INIT", init);
 
         int smIndex = token.indexOf("SM");
@@ -781,7 +783,8 @@ class METARDecoder {
      * @see #metarDict
      */
     static void setMetarDict() {
-        try (BufferedReader br = new BufferedReader(new FileReader("metarDictionary.txt"))) {
+        File metarDictLocation = FilesHandler.findResource("metarDictionary.txt");
+        try (BufferedReader br = new BufferedReader(new FileReader(metarDictLocation))) {
             String dictEntry;
             while ((dictEntry = br.readLine()) != null) {
                 String[] tokens = dictEntry.split("=");

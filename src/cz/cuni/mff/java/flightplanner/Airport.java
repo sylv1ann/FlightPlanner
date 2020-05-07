@@ -11,7 +11,6 @@ public class Airport {
      * The database containing all the important information about airports from
      * the .csv source.
      */
-    //private static final List<Airport> aptDatabase = new LinkedList<>();
     private static final Map<String, Airport> aptDatabase = new HashMap<>();
     private static boolean aptDatabaseIsSet = false;
 
@@ -46,14 +45,12 @@ public class Airport {
      *
      * @see #aptDatabase
      */
-    /*
-    static List<Airport> getAptDatabase() {
-        if (!aptDatabaseIsSet) setAirportsDatabase();
-        return aptDatabase;
-    }*/
-
     private static Map<String, Airport> getAptDatabase() {
-        if (!aptDatabaseIsSet) setAirportsDatabase();
+        try {
+            if (!aptDatabaseIsSet) setAirportsDatabase();
+        } catch (FileNotFoundException e) {
+            System.err.println("Database file was not found.");
+        }
         return aptDatabase;
     }
 
@@ -78,7 +75,7 @@ public class Airport {
         }
         do {
             System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
-            fields = DialogCenter.getInput(false).split("[^A-Za-z]+");
+            fields = DialogCenter.getInput(false, false).split("[^A-Za-z]+");
             result.addAll(Arrays.asList(fields));
         } while (DialogCenter.getResponse(null,"Do you wish to enter more airports? %OPT: ", "Y", true));
         return result;
@@ -99,66 +96,75 @@ public class Airport {
      *
      * @return Returns a {@code NotNull} list of airports which match user's requests.
      */
-    static @NotNull List<Airport> searchAirports(@Nullable Collection<Airport> airportsList, @Nullable List<String> predefinedApt, boolean repeatedSearch) {
+    static @NotNull List<Airport> searchAirports(@Nullable Collection<Airport> airportsList,
+                                                 @Nullable List<String> predefinedApt,
+                                                 boolean repeatedSearch) {
 
         List<Airport> result = new LinkedList<>();
-        if (!aptDatabaseIsSet) setAirportsDatabase();
-        if (airportsList == null) airportsList = getAptDatabase().values();
+        try {
+            if (!aptDatabaseIsSet) setAirportsDatabase();
+            if (airportsList == null) airportsList = getAptDatabase().values();
 
-        if (predefinedApt == null) {
-            if (repeatedSearch) {
-                showAirportsList(airportsList, "icaoCode, aptName, municipality", airportsList.size() <= 10);
-            }
+            if (predefinedApt == null) {
+                if (repeatedSearch) {
+                    showAirportsList(airportsList, "icaoCode, aptName, municipality", airportsList.size() <= 10);
+                }
 
-            List<String> aptsToSearch = enterAirports(null);
-            aptsToSearch.removeIf(String::isBlank);
+                List<String> aptsToSearch = enterAirports(null);
+                aptsToSearch.removeIf(String::isBlank);
 
-            for (String apt : aptsToSearch) {                                       //iterates through all entries typed by user supposing them being airport codes or names
-                List<Airport> matchedApts = new LinkedList<>();                     //creates new list of airports that match current entry of the list
+                for (String apt : aptsToSearch) {                                       //iterates through all entries typed by user supposing them being airport codes or names
+                    List<Airport> matchedApts = new LinkedList<>();                     //creates new list of airports that match current entry of the list
 
-                for (Airport airport : airportsList) {
-                    if (airport.icaoCode.equalsIgnoreCase(apt) ||
-                            airport.name.toLowerCase().contains(apt.toLowerCase()) ||
-                            airport.municipality.toLowerCase().contains(apt.toLowerCase())) {
-                        matchedApts.add(airport);
+                    for (Airport airport : airportsList) {
+                        if (airport.icaoCode.equalsIgnoreCase(apt) ||
+                                airport.name.toLowerCase().contains(apt.toLowerCase()) ||
+                                airport.municipality.toLowerCase().contains(apt.toLowerCase())) {
+                            matchedApts.add(airport);
+                        }
+                    }
+                    List<Airport> intermediateResult;
+                    switch (matchedApts.size()) {
+                        case 0:
+                            System.out.printf("Error, no airport matched \"%s\" entry.%n", apt);
+                            if (DialogCenter.getResponse(null,
+                                                         "Do you wish to retype this entry? %OPT: ",
+                                                         "Y",
+                                                         false)) {
+                                intermediateResult = searchAirports(airportsList,
+                                                                    null,
+                                                                    true);
+                                if (intermediateResult.size() == 1) {
+                                    result.addAll(intermediateResult);
+                                }
+                            }
+                            break;
+                        case 1:
+                            result.addAll(matchedApts); //adds the !only! matching airport to the result
+                            break;
+                        default:
+                            System.out.printf("There were multiple matches for entry: \"%s\".%n", apt);
+                            if (DialogCenter.getResponse("Do you wish to precise more this entry? ",
+                                    "You will be only able to search among the airports that matched \"%APT\". %OPT: "
+                                            .replace("%APT", apt),
+                                    "Y",
+                                    false)
+                            ) {
+                                System.out.println("Enter 4-letter ICAO code for best precision.");
+                                intermediateResult = searchAirports(matchedApts, null,true);
+                                result.addAll(intermediateResult);
+                            }
+                            break;
                     }
                 }
-                List<Airport> intermediateResult;
-                switch (matchedApts.size()) {
-                    case 0:
-                        System.out.printf("Error, no airport matched \"%s\" entry.%n", apt);
-                        if (DialogCenter.getResponse(null,
-                                "Do you wish to retype this entry? %OPT: ",
-                                "Y",
-                                false)
-                        ) {
-                            if ((intermediateResult = searchAirports(airportsList, null,true)).size() == 1)
-                                result.addAll(intermediateResult);
-                        }
-                        break;
-                    case 1:
-                        result.addAll(matchedApts); //adds the !only! matching airport to the result
-                        break;
-                    default:
-                        System.out.printf("There were multiple matches for entry: \"%s\".%n", apt);
-                        if (DialogCenter.getResponse("Do you wish to precise more this entry? ",
-                                "You will be only able to search among the airports that matched \"%APT\". %OPT: "
-                                        .replace("%APT", apt),
-                                "Y",
-                                false)
-                        ) {
-                            System.out.println("Enter 4-letter ICAO code for best precision.");
-                            intermediateResult = searchAirports(matchedApts, null,true);
-                            result.addAll(intermediateResult);
-                        }
-                        break;
+            } else {
+                for (String predefined : predefinedApt) {
+                    Airport foundAirport = aptDatabase.get(predefined);
+                    if (foundAirport != null) result.add(foundAirport);
                 }
             }
-        } else {
-            for (String predefined : predefinedApt) {
-                Airport foundAirport = aptDatabase.get(predefined);
-                if (foundAirport != null) result.add(foundAirport);
-            }
+        } catch (FileNotFoundException e) {
+            System.err.println("Database file was not found.");
         }
 
         return result;
@@ -176,62 +182,37 @@ public class Airport {
      *                    airports or lets the user decide whether all the airports
      *                    should be shown (used with large number of airports).
      */
-    /*
-    static void showAirportsList(List<Airport> aptsToShow, @NotNull String fields, boolean autoProceed) {
-
-        if (!aptDatabaseIsSet) setAirportsDatabase(); //ensures that the database is not empty
-        if (aptsToShow == null) aptsToShow = getAptDatabase();
-
-        if (autoProceed ||
-            DialogCenter.getResponse(null,
-                                     "Do you want to show all %COUNT entries? %OPT: "
-                                             .replace("%COUNT", String.valueOf(aptsToShow.size())),
-                                     "Y",
-                                     true)
-            ) {
-            StringBuilder sb = new StringBuilder();
-            for (Airport apt : aptsToShow) {
-                for (Field fld  : Airport.class.getFields()) {
-                    if ("".equals(fields) || fields.contains(fld.getName())) { //filters all the fields, if "" -> shows every field
-                        if (sb.length() > 0) sb.append(", ");
-                        try {
-                            sb.append(fld.get(apt));
-                        } catch (IllegalAccessException ignored) { }
-                    }
-                }
-                System.out.println(sb.toString());
-                sb.delete(0, sb.length());
-            }
-        } else System.out.println("Action aborted.");
-    } */
-
     static void showAirportsList(Collection<Airport> aptsToShow, @NotNull String fields, boolean autoProceed) {
 
-        if (!aptDatabaseIsSet) setAirportsDatabase(); //ensures that the database is not empty
-        if (aptsToShow == null) aptsToShow = getAptDatabase().values();
+        try {
+            if (!aptDatabaseIsSet) setAirportsDatabase(); //ensures that the database is not empty
+            if (aptsToShow == null) aptsToShow = getAptDatabase().values();
 
-        if (autoProceed ||
-                DialogCenter.getResponse(null,
-                        "Do you want to show all %COUNT entries? %OPT: "
-                                .replace("%COUNT", String.valueOf(aptsToShow.size())),
-                        "Y",
-                        true)
-        ) {
-            StringBuilder sb = new StringBuilder();
+            if (autoProceed ||
+                    DialogCenter.getResponse(null,
+                            "Do you want to show all %COUNT entries? %OPT: "
+                                    .replace("%COUNT", String.valueOf(aptsToShow.size())),
+                            "Y",
+                            true)
+            ) {
+                StringBuilder sb = new StringBuilder();
 
-            for (Airport apt : aptsToShow) {
-                for (Field fld  : Airport.class.getFields()) {
-                    if ("".equals(fields) || fields.contains(fld.getName())) { //filters all the fields, if "" -> shows every field
-                        if (sb.length() > 0) sb.append(", ");
-                        try {
-                            sb.append(fld.get(apt));
-                        } catch (IllegalAccessException ignored) { }
+                for (Airport apt : aptsToShow) {
+                    for (Field fld  : Airport.class.getFields()) {
+                        if ("".equals(fields) || fields.contains(fld.getName())) { //filters all the fields, if "" -> shows every field
+                            if (sb.length() > 0) sb.append(", ");
+                            try {
+                                sb.append(fld.get(apt));
+                            } catch (IllegalAccessException ignored) { }
+                        }
                     }
+                    System.out.println(sb.toString());
+                    sb.delete(0, sb.length());
                 }
-                System.out.println(sb.toString());
-                sb.delete(0, sb.length());
-            }
-        } else System.out.println("Action aborted.");
+            } else System.out.println("Action aborted.");
+        } catch (FileNotFoundException e) {
+            System.err.println("Database file was not found.");
+        }
     }
 
     /**
@@ -241,10 +222,10 @@ public class Airport {
      *
      * @see #aptDatabase
      */
-    /*
-    static void setAirportsDatabase() {
-        String currentDirPath = new File("").getAbsolutePath(), line;
-        File src = new File(currentDirPath + File.separator + "MRpLairportsDatabase.csv");
+    static void setAirportsDatabase() throws FileNotFoundException {
+
+        String line;
+        File src = FilesHandler.findResource("MRpLairportsDatabase.csv");
         String[] csvFields;
         double lat, longit, elev;
         int linesRead = 0;
@@ -258,40 +239,27 @@ public class Airport {
                 longit = Utilities.parseNum(csvFields[8]);
                 APTCategory cat = APTCategory.valueOf(csvFields[6].trim());
                 String[] runways = csvFields[10].split("RUNWAY,");
-                runways = Arrays.stream(runways).filter(x -> !x.isBlank()).toArray(String[]::new);
-                aptDatabase.add(new Airport(csvFields[0], csvFields[1], csvFields[2], csvFields[3], cat, lat, longit, elev, runways));
+                runways = Arrays.stream(runways)
+                                .filter(x -> !x.isBlank())
+                                .toArray(String[]::new);
+                aptDatabase.put(csvFields[0], new Airport(csvFields[0],
+                                                          csvFields[1],
+                                                          csvFields[2],
+                                                          csvFields[3],
+                                                          cat,
+                                                          lat,
+                                                          longit,
+                                                          elev,
+                                                          runways));
             }
             if (linesRead != aptDatabase.size()) throw new IOException();
             else aptDatabaseIsSet = true;
-        } catch (IOException e) {
-            System.out.println("Something went wrong while creating airport database.");
+        } catch (FileNotFoundException e) {
+            System.err.println("Something went wrong while creating airport database.");
+            throw new FileNotFoundException();
         }
-    }*/
-
-    static void setAirportsDatabase() {
-        String currentDirPath = new File("").getAbsolutePath(), line;
-        File src = new File(currentDirPath + File.separator + "MRpLairportsDatabase.csv");
-        String[] csvFields;
-        double lat, longit, elev;
-        int linesRead = 0;
-
-        try (BufferedReader br = new BufferedReader(new FileReader(src))) {
-            while ((line = br.readLine()) != null) {
-                ++linesRead;
-                csvFields = line.split(",", 11);
-                elev = Utilities.parseNum(csvFields[9]);
-                lat = Utilities.parseNum(csvFields[7]);
-                longit = Utilities.parseNum(csvFields[8]);
-                APTCategory cat = APTCategory.valueOf(csvFields[6].trim());
-                String[] runways = csvFields[10].split("RUNWAY,");
-                runways = Arrays.stream(runways).filter(x -> !x.isBlank()).toArray(String[]::new);
-                // aptDatabase.add(new Airport(csvFields[0], csvFields[1], csvFields[2], csvFields[3], cat, lat, longit, elev, runways));
-                aptDatabase.put(csvFields[0], new Airport(csvFields[0], csvFields[1], csvFields[2], csvFields[3], cat, lat, longit, elev, runways));
-            }
-            if (linesRead != aptDatabase.size()) throw new IOException();
-            else aptDatabaseIsSet = true;
-        } catch (IOException e) {
-            System.out.println("Something went wrong while creating airport database.");
+        catch (IOException ex) {
+            System.err.println("One or more database lines were not imported.");
         }
     }
 

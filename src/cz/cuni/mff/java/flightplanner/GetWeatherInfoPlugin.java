@@ -70,14 +70,6 @@ public class GetWeatherInfoPlugin implements Plugin {
         boolean deleteFilesOnExit = false;
         for (Airport apt : foundAirports) {
 
-            if (DialogCenter.getResponse(null,
-                    "Do you want to delete the RAW data file(s)? %OPT: ",
-                    "Y",
-                    true)
-            ) {
-                deleteFilesOnExit = true;
-            }
-
             try {
                 File aptMETAR_raw;
                 if (DialogCenter.getResponse(null, "Do you debug? %OPT: ","Y", false)) {
@@ -87,8 +79,6 @@ public class GetWeatherInfoPlugin implements Plugin {
                             dwnldr.downloadMETAR(utcFromTime, utcToTime,
                                     apt);
                 }
-                if (deleteFilesOnExit || aptMETAR_raw.getName().startsWith("empty_"))
-                    aptMETAR_raw.deleteOnExit();
 
                 if (!autoOutputManagement) {
                     outStream =
@@ -100,14 +90,23 @@ public class GetWeatherInfoPlugin implements Plugin {
                 else {
                     if (outStream.getClass().isAssignableFrom(FileOutputStream.class)) {
                         outStream =
-                                DialogCenter.setFileOutputStream(
-                                        true,
-                                        "%ICAO_METAR".replace("%ICAO",apt.icaoCode)
-                                );
+                            DialogCenter.setFileOutputStream(false,
+                                                             apt.icaoCode + "_METAR");
                     }
                 }
                 PrintStream pr = new PrintStream(outStream);
+                if (outStream.getClass().isAssignableFrom(FileOutputStream.class) &&
+                    DialogCenter.getResponse(null,
+                                             "Do you want to delete the RAW data file(s) with %ICAO METAR? %OPT: "
+                                                    .replace("%ICAO", apt.icaoCode),
+                                             "Y",
+                                             true)
+                ) {
+                    deleteFilesOnExit = true;
+                }
 
+                if (deleteFilesOnExit || aptMETAR_raw.getName().startsWith("empty_"))
+                    aptMETAR_raw.deleteOnExit();
                 if (DialogCenter.getResponse(null,
                                              "Do you want to print the raw data using the output form chosen previously? %OPT: ",
                                              "Y",
@@ -147,9 +146,8 @@ public class GetWeatherInfoPlugin implements Plugin {
             System.out.println("Incorrect date/time format will result in taking the current time - 24 hours.");
             System.out.printf("Please enter the \"from\" date in the following format: %s : ", dateTimeStrFormat);
             chosenDateTime =
-                    LocalDateTime.parse(DialogCenter.getInput(false),
-                                        format
-                                       );
+                    LocalDateTime.parse(DialogCenter.getInput(false, false),
+                                        format);
             if (now.minusYears(1).isAfter(chosenDateTime)) {
                 System.out.printf("The weather history would be very long since %s%n." +
                                   "Therefore, last 24 hours weather reports will be processed.%n",
@@ -188,9 +186,8 @@ public class GetWeatherInfoPlugin implements Plugin {
             System.out.println("Incorrect date/time format will result in taking the current time.");
             System.out.printf("Please enter the \"to\" date in the following format: %s: ", dateTimeStrFormat);
             LocalDateTime chosenDateTime =
-                    LocalDateTime.parse(DialogCenter.getInput(false),
-                                        format
-                                       );
+                    LocalDateTime.parse(DialogCenter.getInput(false, false),
+                                        format);
 
             if (chosenDateTime.isAfter(now)) {
                 System.out.println("There are no weather reports provided for the given date in the future." +

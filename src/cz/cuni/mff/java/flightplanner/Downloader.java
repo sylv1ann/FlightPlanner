@@ -64,10 +64,10 @@ public class Downloader {
                     bis.close();
                     return targetFile;                              // the point where the method normally ends
                 } catch (IOException ignore) {
-                    System.out.println("An error occurred.");
+                    System.err.println("An error occurred.");
                 }
             } catch (IOException ignored) {
-                System.out.println("The file couldn't be created.");
+                System.err.println("The file couldn't be created.");
             }
         }
 
@@ -81,7 +81,7 @@ public class Downloader {
     }
 
     @NotNull File noDownloadMETAR(@NotNull ZonedDateTime timeFrom,@NotNull ZonedDateTime timeTo, @NotNull Airport airportTarget) {
-        return new File("LZIB_METAR_backup.csv");
+        return new File("C:\\Users\\vikto\\Documents\\MFF_Skola\\Java\\FlightPlanner\\LZIB_METAR_20200507230852.txt");
     }
 
     /**
@@ -109,19 +109,9 @@ public class Downloader {
         try {
             return new URL(sURL);
         } catch (MalformedURLException e) {
+            System.err.println("The URL is malformed. Null will be returned.");
             return null;
         }
     }
 
-    /**
-     * Creates an absolute path for the new file in the current directory.
-     *
-     * @param fileName = Name of the new file.
-     * @return = Returns new file with path to current directory and fileName.
-     */
-    static @NotNull File fileFromPathCreator(@NotNull String fileName) {
-        File currentDir = new File("");
-        String part = currentDir.getAbsolutePath() + File.separator + fileName;
-        return new File(part);
-    }
 }

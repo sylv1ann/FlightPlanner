@@ -8,6 +8,7 @@ import java.util.List;
 public class GetAirportInfoPlugin implements Plugin {
 
     OutputStream outStream = null;
+    private static final double ftToM = 0.3048;
 
     @Override
     public String name() { return this.getClass().getName(); }
@@ -29,34 +30,33 @@ public class GetAirportInfoPlugin implements Plugin {
      */
     @Override
     public void action() {
-        final double feetMeter = 0.3048;
         boolean autoOutputManagement =
                 DialogCenter.getResponse(null,
                                          "Do you want the %KEYWORD output to be managed automatically? %OPT: "
                                                  .replace("%KEYWORD", this.keyword()),
                                          "Y",
-                                         true
-                                        );
+                                         true);
         List<Airport> foundAirports =
-                Airport.searchAirports(null,null, false);
+                    Airport.searchAirports(null, null, false);
 
         if (autoOutputManagement)
             outStream = DialogCenter.chooseOutputForm("",
                                                       false,
-                                                      null
-                                                     );
+                                                      null);
         for (Airport apt : foundAirports) {
 
-            if (!autoOutputManagement)
+            if (!autoOutputManagement) {
                 outStream =
                         DialogCenter.chooseOutputForm(" for %ICAO airport"
                                                           .replace("%ICAO", apt.icaoCode),
                                                       true,
-                                                      apt.icaoCode + "_INFO"
-                                                     );
+                                                      apt.icaoCode + "_INFO");
+            }
             else {
-                if (outStream instanceof FileOutputStream)
-                    outStream = DialogCenter.setFileOutputStream(false, apt.icaoCode + "_INFO");
+                if (outStream.getClass().isAssignableFrom(FileOutputStream.class))
+                    outStream =
+                        DialogCenter.setFileOutputStream(false,
+                                                         apt.icaoCode + "_INFO");
             }
             PrintStream pr = new PrintStream(outStream);
             pr.printf("------------ Information about %s airport. ------------%n" +
@@ -64,46 +64,30 @@ public class GetAirportInfoPlugin implements Plugin {
                       "The %s airport is situated in: %s, %s.%n" +
                       "It is a %s.%n",  apt.icaoCode,       apt.icaoCode,
                                         apt.name,           apt.municipality,
-                                        apt.countryCode,    apt.cat.name().replace("_", " size ")
+                                        apt.countryCode,    apt.cat.name()
+                                                                   .replace("_", " size ")
                      );
-
             pr.printf("The coordinates of %s are: %.4f, %.4f and its elevation is: %.0f feet (%.1f meters above sea level).%n",
                         apt.name,       apt.geoLat,
                         apt.geoLong,    apt.elevation,
-                        Utilities.constantConverter(apt.elevation, feetMeter)
+                        Utilities.constantConverter(apt.elevation, ftToM)
                      );
-            String appendChar =
-                    apt.runways.length > 1
-                            ? "s"
-                            : "";
+            String append_S = apt.runways.length > 1 ? "s" : "";
 
-            pr.printf("This airport has %d runway%s:%n", apt.runways.length, appendChar);
+            pr.printf("This airport has %d runway%s available:%n", apt.runways.length, append_S);
             for (String rwy : apt.runways) {
                 String[] fields = rwy.split(",", -1);
-                pr.printf("Runway identification is: %s/%s.%n", fields[5], fields[11]);
-                pr.printf("    It's length is: %s feet (%.1f meters) and width: %s feet (%.1f meters).%n",
-                          fields[0], Utilities.constantConverter(Double.parseDouble(fields[0]), feetMeter),
-                          fields[1], Utilities.constantConverter(Double.parseDouble(fields[1]), feetMeter)
+                pr.printf("Runway identification is: %s/%s.%n", fields[5], fields[11]); // references correct fields in the csv file format
+                pr.printf("\tIt's length is: %s feet (%.1f meters) and width: %s feet (%.1f meters).%n",
+                          fields[0], Utilities.constantConverter(Double.parseDouble(fields[0]), ftToM),
+                          fields[1], Utilities.constantConverter(Double.parseDouble(fields[1]), ftToM)
                          );
             }
             pr.printf("------------ End of information about %s airport.------------%n%n", apt.icaoCode);
-            if (outStream instanceof FileOutputStream) {
-                pr = System.out;
-                pr.println("Information about " + apt.icaoCode + " airport has been successfully written to the file.");
-            } else { //the outStream goes to the screen
-                boolean notLastEntry = foundAirports.iterator().hasNext();
-                boolean autoPrint = notLastEntry &&
-                                    DialogCenter.getResponse(null,
-                                                             "To print automatically write 'a': ",
-                                                             "a",
-                                                             true
-                                                            );
-                if (notLastEntry && !autoPrint)
-                    DialogCenter.getResponse(null,
-                                             "Press Enter to continue.\n",
-                                             "",
-                                             true
-                                            );
+            if (outStream.getClass().isAssignableFrom(FileOutputStream.class)) {
+                pr = System.out; // changes the output stream to its default value
+                pr.println("\nInformation about %ICAO airport has been successfully written to the file.\n"
+                           .replace("%ICAO",apt.icaoCode));
             }
         }
     }
