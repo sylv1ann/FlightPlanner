@@ -24,7 +24,7 @@ public class Utilities {
     static @NotNull String conversion(boolean conversionNeeded, String valueToConvert, double constant, String finalUnit) {
         if (conversionNeeded)
             return  " (%s %UNIT)"
-                    .replace("%s", constantConverter(valueToConvert, constant))
+                    .replace("%s", unitsConverter(valueToConvert, constant))
                     .replace("%UNIT", finalUnit);
         else return "";
     }
@@ -34,7 +34,7 @@ public class Utilities {
      * @param arg the value to be converted.
      * @return Returns the {@code arg} parameter value after conversion.
      */
-    static double constantConverter(double arg, double constant) {
+    static double unitsConverter(double arg, double constant) {
         return arg * constant;
     }
 
@@ -44,11 +44,11 @@ public class Utilities {
      * @param arg Argument to be parsed and converted.
      * @param constant The constant multiplied to the {@code arg}
      * @return converted value from {@code arg}
-     * @see #constantConverter(double, double)
+     * @see #unitsConverter(double, double)
      */
-    static @NotNull String constantConverter(String arg, double constant) {
+    static @NotNull String unitsConverter(String arg, double constant) {
         try {
-            double argNum = constantConverter(Double.parseDouble(arg), constant);
+            double argNum = unitsConverter(Double.parseDouble(arg), constant);
             return new DecimalFormat("#.##").format(argNum);
         } catch (NumberFormatException ignored) {
             return String.valueOf(Double.NaN);

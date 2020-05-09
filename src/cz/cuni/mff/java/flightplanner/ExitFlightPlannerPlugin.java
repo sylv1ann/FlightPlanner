@@ -19,5 +19,19 @@ public class ExitFlightPlannerPlugin implements Plugin{
      * will be terminated before the invocation.
      */
     @Override
-    public void action() { }
+    public int action() {
+        try {
+            if (DialogCenter.getResponse(null,
+                                         "Are you sure to exit the planner? %OPT: ",
+                                         "Y",
+                                         true)) {
+                System.out.println("Goodbye. See you next time in Flight Planner.");
+                Thread.sleep(300);
+                System.exit(0);
+            }
+        } catch (InterruptedException ex) {
+            return 1;
+        }
+        return 0;
+    }
 }

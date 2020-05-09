@@ -4,7 +4,6 @@ import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.FileHandler;
 
 /**
  * The METARProcessor is the class responsible for parsing, modifying
@@ -38,9 +37,13 @@ class METARDecoder {
      *
      * @param metarToDecode The fixed METAR file to be decoded.
      * @param printer       The printer used for printing.
+     *
+     * @return The exit code of the action. Any non-zero code means that an issue
+     * has occurred.
      */
-    void fileDecode(@NotNull File metarToDecode, @NotNull PrintStream printer) {
-        checkDictionary();
+    int fileDecode(@NotNull File metarToDecode, @NotNull PrintStream printer) {
+        int exitCode;
+        if ((exitCode = checkAndSetMetarDict()) != 0) return exitCode;
 
         System.out.println(Utilities.sectionSeparator("METAR DECODING"));
         try (BufferedReader br = new BufferedReader(new FileReader(metarToDecode))) {
@@ -68,6 +71,7 @@ class METARDecoder {
                 String[] tidyMETAR = csvMETARtidy(metarEntry.toString()
                                                                      .replace("=", "")
                                                                      .strip());
+                if (tidyMETAR == null) return 1;
                 String initInfo = tidyMETAR[0],
                        finalMetar = tidyMETAR[1],
                        decision = finalMetar.length() > 80
@@ -88,7 +92,9 @@ class METARDecoder {
             System.out.println("No more METARs for the specified period are available.\n");
         } catch (IOException e) {
             System.err.println("File reading failed. The METAR will not be decoded.");
+            return 1;
         }
+        return 0;
     }
 
     /**
@@ -96,7 +102,8 @@ class METARDecoder {
      * from the actual METAR.
      * @param metarEntry a METAR unit and its metadata in .csv format
      * @return The String array of length 2, which contains the metadata on its
-     *         first position and the METAR itself on the second position.
+     *         first position and the METAR itself on the second position, or
+     *         {@code null} if a database issue is detected.
      */
     private String[] csvMETARtidy(@NotNull String metarEntry) {
         String auto = "", airport = "";
@@ -106,7 +113,11 @@ class METARDecoder {
             auto = "automatically, with no human intervention or oversight ";
         }
         String[] fields = metarEntry.split(",");
-        List<Airport> metarConcernedApts = Airport.searchAirports(null, List.of(fields[0]), false);
+        List<Airport> metarConcernedApts = Airport.searchAirports(null,
+                                                                  List.of(fields[0]),
+                                                                  false,
+                                                                  false);
+        if (metarConcernedApts == null) return null;
         for (Airport apt : metarConcernedApts) {
             airport = "Location: %ICAO\n\t%LOC\n\tLatitude: %LAT\n\tLongtitude: %LONG\n"
                       .replace("%ICAO", apt.icaoCode)
@@ -501,7 +512,7 @@ class METARDecoder {
         String layerType = metarDict.get(token.substring(0, 3));
         if (layerType == null) layerType = "unknown layer type";
         String  height      = token.substring(3,6),
-                layerHeight = Utilities.constantConverter(height,100), //i.e. BKN030 means broken at 3000 feet
+                layerHeight = Utilities.unitsConverter(height,100), //i.e. BKN030 means broken at 3000 feet
                 conversion  = Utilities.conversion(true,layerHeight, ftToM, "meters");
         String appendix;
         switch (token.substring(6)) {
@@ -777,28 +788,36 @@ class METARDecoder {
     }
 
     /**
-     * Reads the .txt file with the dictionary used for METAR/TAF terminology
-     * and creates {@code Map<String,String> metarDict} map.
+     * Checks whether the dictionary with METAR/TAF terminology already exists.
+     * If it does not, then reads the .txt file containing the dictionary with
+     * specified terminology and creates {@code Map<String,String> metarDict} map.
      *
      * @see #metarDict
+     *
+     * @return The exit code of the action. Any non-zero code means that an issue
+     *         has occurred.
      */
-    static void setMetarDict() {
-        File metarDictLocation = FilesHandler.findResource("metarDictionary.txt");
-        try (BufferedReader br = new BufferedReader(new FileReader(metarDictLocation))) {
-            String dictEntry;
-            while ((dictEntry = br.readLine()) != null) {
-                String[] tokens = dictEntry.split("=");
-                metarDict.put(tokens[0], tokens[1]);
-            }
-        } catch (IOException ignored) { }
-    }
+    static int checkAndSetMetarDict() {
+        if (metarDict.isEmpty()) {
+            File metarDictLocation = FilesHandler.findResource("metarDictionary.txt");
+            if (metarDictLocation == null) {
+                System.err.println("The resource was not found.\n");
+                return 1;
+            } else System.err.println("Resource found successfully at %PATH"
+                                      .replace("%PATH",metarDictLocation.getAbsolutePath()));
 
-    /**
-     * The method only checks whether the dictionary is empty. In such a case,
-     * the method for dictionary initialization is called.
-     */
-    private static void checkDictionary() {
-        if (metarDict.isEmpty()) setMetarDict();
+            try (BufferedReader br = new BufferedReader(new FileReader(metarDictLocation))) {
+                String dictEntry;
+                while ((dictEntry = br.readLine()) != null) {
+                    String[] tokens = dictEntry.split("=");
+                    metarDict.put(tokens[0], tokens[1]);
+                }
+            } catch (IOException ex) {
+                System.err.println("Something went wrong while reading the METAR dictionary file.");
+                return 1;
+            }
+        }
+        return 0;
     }
 
     /**
@@ -814,7 +833,7 @@ class METARDecoder {
     static @NotNull String initTokenDecoder(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String result = "";
         assert token.matches(pattern);
-        checkDictionary();
+        checkAndSetMetarDict();
         if (tokenPrint) {
             return Utilities.sectionSeparator(token) + "\n";
         }

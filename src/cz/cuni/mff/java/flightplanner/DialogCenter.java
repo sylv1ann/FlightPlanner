@@ -25,7 +25,7 @@ public class DialogCenter {
                 checkActivePlugins(activePlugs);
                 Plugin.startPlugins(activePlugs);
                 activePlugs.clear();
-            }
+            } else break;
         }
     }
 
@@ -266,28 +266,15 @@ public class DialogCenter {
         ArrayList<Plugin> toRemove = new ArrayList<>();
         if (active.stream()
                   .anyMatch(x -> x.getClass().isAssignableFrom(ExitFlightPlannerPlugin.class))) {
-
-            try {
-                if (getResponse(null,
-                                "Are you sure to exit the planner? %OPT: ",
-                                "Y",
-                                true)) {
-                    System.out.println("Goodbye. See you next time in Flight Planner.");
-                    Thread.sleep(500);
-                    System.exit(0);
-                } else {
-                    active.removeIf(x -> x.getClass().isAssignableFrom(ExitFlightPlannerPlugin.class)); //getName().contains("ExitFlightPlanner"));
-                    System.out.printf("%n");
-                }
-            } catch (InterruptedException ignored) { }
+            if (new ExitFlightPlannerPlugin().action() == 0)
+                active.removeIf(x -> x.getClass().isAssignableFrom(ExitFlightPlannerPlugin.class));
         }
 
         if ((active.stream()
-                   .anyMatch(x -> x.getClass().isAssignableFrom(CreateFlightPlanPlugin.class))
-            ) &&
+                   .anyMatch(x -> x.getClass().isAssignableFrom(CreateFlightPlanPlugin.class))) &&
              active.stream()
-                   .anyMatch(x -> ( x.getClass().isAssignableFrom(GetAirportInfoPlugin.class) ||
-                                            x.getClass().isAssignableFrom(GetWeatherInfoPlugin.class)))) {
+                   .anyMatch(x -> ( x.getClass().isAssignableFrom(AirportInfoPlugin.class) ||
+                                            x.getClass().isAssignableFrom(WeatherInfoPlugin.class)))) {
             System.out.println("The most complex operation you want to perform is flight plan creation.\nTherefore, these operations will be suspended: ");
             active.stream()
                   .filter(x -> (x.pluginID() == 1 || x.pluginID() == 2))
@@ -299,9 +286,11 @@ public class DialogCenter {
             toRemove.clear();
         }
 
-        System.out.println("The list of operations which will be performed: ");
-        for (Plugin mod : active) {
-            System.out.printf("(%d) : %s%n", mod.pluginID(), mod.description());
+        if (active.size() > 0) {
+            System.out.println("The list of operations which will be performed: ");
+            for (Plugin mod : active) {
+                System.out.printf("(%d) : %s%n", mod.pluginID(), mod.description());
+            }
         }
         System.out.printf("%n");
     }
@@ -315,19 +304,21 @@ public class DialogCenter {
      * @return Non-null {@code String} input given by a user.
      */
     static @NotNull String getInput(boolean blankLineAllowed, boolean printNewLine) {
-        String line;
-        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        try {
-            do {
-                line = br.readLine();
-            } while (line == null || (!blankLineAllowed && line.isBlank()));
-        } catch (IOException e) {
-            System.out.println("Something went wrong. Please try again.");
-            line = getInput(blankLineAllowed, printNewLine);
-        }
+        synchronized (new Object()) {
+            String line;
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            try {
+                do {
+                    line = br.readLine();
+                } while (line == null || (!blankLineAllowed && line.isBlank()));
+            } catch (IOException e) {
+                System.out.println("Something went wrong. Please try again.");
+                line = getInput(blankLineAllowed, printNewLine);
+            }
 
-        if (printNewLine) System.out.printf("%n");
-        return line;
+            if (printNewLine) System.out.printf("%n");
+            return line;
+        }
     }
 
     /**
@@ -345,16 +336,17 @@ public class DialogCenter {
      * @return {@code True}, if the beginnings of both user answer and response
      *         expected in {@code trueResponse} parameter are equal.
      */
-    static boolean getResponse(@Nullable String message, @NotNull String question, @NotNull String trueResponse, boolean blankAllowed) {
+    static boolean getResponse(@Nullable String message, @NotNull String question,
+                               @NotNull String trueResponse, boolean blankAllowed) {
         String optChoice = "(Y/n)";
 
         if (message != null) System.out.println(message);
         String autoDecline = "";
-        if (blankAllowed )
+        if (blankAllowed)
             autoDecline = "Enter key press will decline automatically.\n";
         System.out.print(autoDecline + question.replace("%OPT", optChoice));
         String trueAnswer = getInput(blankAllowed, true).trim();
         return trueAnswer.startsWith(trueResponse.toUpperCase()) ||
-               trueAnswer.startsWith(trueResponse.toLowerCase());
+                trueAnswer.startsWith(trueResponse.toLowerCase());
     }
 }

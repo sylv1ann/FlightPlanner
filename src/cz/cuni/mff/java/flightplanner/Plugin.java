@@ -79,5 +79,5 @@ public interface Plugin {
 
     Integer pluginID();
 
-    void action();
+    int action();
 }

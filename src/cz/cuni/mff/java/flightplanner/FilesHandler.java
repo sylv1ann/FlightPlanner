@@ -2,9 +2,8 @@ package cz.cuni.mff.java.flightplanner;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
+import java.io.UncheckedIOException;
+import java.nio.file.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,23 +27,42 @@ public class FilesHandler {
 
         try {
             File foundResource;
-            foundResource = walkThrough(defaultOutputDirPath, fileName);
-            if (foundResource != null) {
-                return foundResource;
-            } else {
+            System.err.println("Searching for a required resource.");
+            foundResource = walkThrough(defaultResourceDirPath, fileName);
+            if (foundResource == null) {
+                System.err.println("%FILE was not found in %PATH"
+                                   .replace("%FILE", fileName)
+                                   .replace("%PATH", defaultResourceDirPath.toString()));
                 foundResource = walkThrough(projectParentRootPath,fileName);
-                if (foundResource != null) {
-                    return foundResource;
-                } else {
-                    Path homeRoot = Path.of(System.getProperty("user.home"));
-                    foundResource = walkThrough(homeRoot, fileName);
-                    if (foundResource != null) {
-                        return foundResource;
-                    } else throw new IOException();
-                }
-            }
-        } catch (IOException ignored) {
-            System.err.println("Could not walk or find the file.");
+                if (foundResource == null) {
+                    System.err.println("%FILE was not found in %PATH"
+                                       .replace("%FILE", fileName)
+                                       .replace("%PATH", projectParentRootPath.toString()));
+                    String previous = projectParentRootPath + File.separator;
+                    int count = 0;
+                    do {
+                        count++;
+                        previous = previous + File.separator + "..";
+                        Path higherDir = Path.of(previous)
+                                             .normalize();
+                        foundResource = walkThrough(higherDir, fileName);
+                        if (foundResource != null) return foundResource;
+                        else {
+                            System.err.println("%FILE was not found in %PATH"
+                                      .replace("%FILE", fileName)
+                                      .replace("%PATH", higherDir.toString()));
+                        }
+                    } while (count < 3);
+                    System.out.printf("%n");
+                    throw new IOException(); // the exception is thrown only if
+                    // the foundResource variable is null after the loop
+                } else return foundResource;
+            } else return foundResource;
+        } catch (IOException exception) {
+            System.err.println("Please check that the %FILE is in the %RESOURCEDIR or at least %PROJECTDIR"
+                               .replace("%FILE", fileName)
+                               .replace("%RESOURCEDIR", defaultResourceDirPath.toString())
+                               .replace("%PROJECTDIR", projectParentRootPath.toString()));
             return null;
         }
     }
@@ -65,17 +83,25 @@ public class FilesHandler {
         List<Path> foundPaths;
 
         try {
-            if (Files.walk(defaultResourceDirPath)
-                    .anyMatch(x -> x.getFileName()
-                                            .toString()
-                                            .equals(fileName))) {
-                foundPaths = Files.walk(defaultResourceDirPath)
+            if (Files.walk(path)
+                     .anyMatch(x -> x.getFileName()
+                                             .toString()
+                                             .equals(fileName))) {
+                foundPaths = Files.walk(path)
                                   .filter(x -> x.getFileName()
                                                         .toString()
                                                         .equals(fileName))
                                   .collect(Collectors.toUnmodifiableList());
-                return new File(foundPaths.get(0).toUri());
+                return new File(foundPaths.get(0)
+                                              .toUri());
             } else return null;
+        } catch (UncheckedIOException e) {
+            if (e.getCause() instanceof AccessDeniedException) {
+                AccessDeniedException ex = (AccessDeniedException) e.getCause();
+                System.err.println("The access to %FILE was denied."
+                        .replace("%FILE", ex.getFile()));
+            }
+            return null;
         } catch (IOException e) {
             return null;
         }

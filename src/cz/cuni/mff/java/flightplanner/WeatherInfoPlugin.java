@@ -7,7 +7,7 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 
 
-public class GetWeatherInfoPlugin implements Plugin {
+public class WeatherInfoPlugin implements Plugin {
 
     final String dateTimeStrFormat = "yyyy-MM-dd HH:mm";
           OutputStream outStream;
@@ -24,8 +24,13 @@ public class GetWeatherInfoPlugin implements Plugin {
     @Override
     public Integer pluginID() { return 1; }
 
+    /**
+     *
+     * @return The exit code of the action. Any non-zero code means that an issue
+     *         has occurred.
+     */
     @Override
-    public void action() {
+    public int action() {
         LocalDateTime fromTime, toTime;
         Downloader dwnldr = new Downloader();
         METARDecoder weatherProcessor = new METARDecoder();
@@ -60,13 +65,17 @@ public class GetWeatherInfoPlugin implements Plugin {
                         .withZoneSameInstant(ZoneId.of("UTC"));
         List<File>      downloadedMETARs = new ArrayList<>();
         List<Airport>   foundAirports =
-                          Airport.searchAirports(null,null,false);
+                          Airport.searchAirports(null,
+                                                 null,
+                                                 false,
+                                                 false);
+        if (foundAirports == null) return 1;
+
         if (autoOutputManagement) {
             outStream =
                     DialogCenter.chooseOutputForm("", false,
                                                   null);
         }
-
         boolean deleteFilesOnExit = false;
         for (Airport apt : foundAirports) {
 
@@ -115,16 +124,22 @@ public class GetWeatherInfoPlugin implements Plugin {
                             "RAW %ICAO FILE"
                                        .replace("%ICAO",apt.icaoCode))
                               );
-                    printRawDataFile(aptMETAR_raw, pr);
+                    int exit;
+                    if ((exit = printRawDataFile(aptMETAR_raw, pr)) != 0) {
+                        return exit;
+                    }
                     pr.println(Utilities.sectionSeparator("END RAW FILE"));
                 }
 
-                weatherProcessor.fileDecode(aptMETAR_raw, pr);
+                // executes the fileDecode method and returns its exitCode
+                return weatherProcessor.fileDecode(aptMETAR_raw, pr);
             } catch (IOException e) {
                 System.err.println("An error occured while creating a file with %ICAO METAR data."
                                    .replace("%ICAO", apt.icaoCode));
+                return 1;
             }
         }
+        return 0;
     }
 
     /**
@@ -208,7 +223,15 @@ public class GetWeatherInfoPlugin implements Plugin {
         return resultTime;
     }
 
-    void printRawDataFile(@NotNull File file, PrintStream printer) {
+    /**
+     * The method which only prints the specified {@code file} using the
+     * {@code printer}.
+     * @param file The file to be printed.
+     * @param printer The printer used to print the {@code file}.
+     * @return The exit code of the action. Any non-zero code means that an issue
+     *         has occurred.
+     */
+    int printRawDataFile(@NotNull File file, PrintStream printer) {
         try (BufferedReader br =
                      new BufferedReader(new FileReader(file))) {
             String line;
@@ -216,7 +239,9 @@ public class GetWeatherInfoPlugin implements Plugin {
                 printer.println(line);
             }
             printer.printf("%n");
-        } catch (IOException ignored) { }
+        } catch (IOException ignored) {
+            return 1;
+        }
+        return 0;
     }
-
 }

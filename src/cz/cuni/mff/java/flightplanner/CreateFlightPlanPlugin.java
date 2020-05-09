@@ -19,8 +19,8 @@ public class CreateFlightPlanPlugin implements Plugin {
     public Integer pluginID() { return 3; }
 
     @Override
-    public void action() {
-
+    public int action() {
+        return 0;
         //outStream = DialogCenter.chooseOutputForm("", true, "");
         // TODO: 15/03/2020 remember to check method arguments. The setting should be default
     }
