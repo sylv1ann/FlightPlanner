@@ -54,8 +54,12 @@ public class Downloader {
 
                 String finalAirfieldICAO = airportTarget.icaoCode;
                 boolean threadStarted = false;
-                Thread t = new Thread(() ->
-                        System.out.printf("%n... %s METAR download in process ...%n", finalAirfieldICAO.toUpperCase()));
+                Thread t = new Thread(() -> {
+                    System.out.printf("%n... %s METAR download in process ...%n", finalAirfieldICAO.toUpperCase());
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException ignored) { }
+                });
 
                 while ((line = br.readLine()) != null) {
                     if (!threadStarted) {

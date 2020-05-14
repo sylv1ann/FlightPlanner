@@ -7,37 +7,15 @@ import java.util.stream.Collectors;
 
 /**
  * The DialogCenter class provides the communication interface between the program
- * and its user. This class represents the entry point to the program and includes
- * also basic methods and functions to handle the initial setting of the program.
+ * and its user. This class represents includes also basic methods and functions
+ * to handle the initial setting of the program.
  */
 public class DialogCenter {
-
-    private static final String projectPackageName = "cz.cuni.mff.java.flightplanner";
-
-    /**
-     * The entry point to the program.
-     * @param args Program parameters.
-     */
-    public static void main(String[] args) {
-        List<Plugin> allPlugins, activePlugins;
-
-        allPlugins = Plugin.loadAllPlugins(projectPackageName);
-        welcomeMenu();
-        while (true) {
-            activePlugins = choosePlugins(allPlugins);
-            if (activePlugins.size() > 0) {
-                Plugin.returnActivePlugins(activePlugins, allPlugins);
-                Plugin.checkActivePlugins(activePlugins);
-                Plugin.startPlugins(activePlugins);
-                activePlugins.clear();
-            } else break;
-        }
-    }
 
     /**
      * The method prints initial welcoming text.
      */
-    private static void welcomeMenu() {
+    static void welcomeMenu() {
         System.out.println("Welcome to the Flight Planner.");
         System.out.println("You will be provided with several possibilities of constructing the parts of the flight plan.");
         System.out.printf("%n");

@@ -78,7 +78,8 @@ public class Airport {
             System.out.println(initMsg);
         }
         do {
-            System.out.print("Please enter all the airports you wish to search and separate them with any non-letter character: ");
+            System.out.println("Please enter all the airports you want to search for and separate them with any non-letter character.");
+            System.out.print("You can search by ICAO code (e.g. LKPR), by city name (Prague) or the airport name (e.g \"Havel\" for Prague airport): ");
             fields = DialogCenter.getInput(false, false)
                                  .split("[^A-Za-z]+");
             result.addAll(Arrays.asList(fields));

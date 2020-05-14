@@ -84,7 +84,6 @@ public class WeatherInfoPlugin implements Plugin {
                     DialogCenter.chooseOutputForm("", false,
                                                   null);
         }
-        boolean deleteFilesOnExit = false;
         Map<String, File> aptMETARs_raw =
                 dwnldr.downloadMETARs(utcFromTime, utcToTime,
                                       foundAirports);
