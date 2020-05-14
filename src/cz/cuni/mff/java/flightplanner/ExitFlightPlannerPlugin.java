@@ -1,5 +1,9 @@
 package cz.cuni.mff.java.flightplanner;
 
+/**
+ * The ExitFlightPlannerPlugin represents a class which handles the application
+ * exiting after the confirmation of the user.
+ */
 public class ExitFlightPlannerPlugin implements Plugin{
 
     @Override
@@ -29,9 +33,9 @@ public class ExitFlightPlannerPlugin implements Plugin{
                 Thread.sleep(300);
                 System.exit(0);
             }
+            return 0;
         } catch (InterruptedException ex) {
             return 1;
         }
-        return 0;
     }
 }

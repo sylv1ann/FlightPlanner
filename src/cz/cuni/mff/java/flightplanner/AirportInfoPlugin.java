@@ -6,6 +6,10 @@ import java.io.PrintStream;
 import java.text.DecimalFormat;
 import java.util.List;
 
+/**
+ * The AirportInfoPlugin class is the class that gathers data about the
+ * airports available in the .csv "database" file and shows it to the user.
+ */
 public class AirportInfoPlugin implements Plugin {
 
     OutputStream outStream = null;
@@ -46,7 +50,7 @@ public class AirportInfoPlugin implements Plugin {
                                            null,
                                            false,
                                            false);
-        if (foundAirports == null) return 1;
+        if (foundAirports == null) return 1;                         // returns the exit code if searchAirports fails
 
         if (autoOutputManagement)
             outStream = DialogCenter.chooseOutputForm("",
@@ -86,16 +90,16 @@ public class AirportInfoPlugin implements Plugin {
             pr.printf("This airport has %d runway%s available:%n", apt.runways.size(), append_S);
             for (Runway rwy : apt.runways) {
                 pr.printf("Runway identification is: %s.%n", rwy.identification);
-                if (rwy.isDetailed) {
-                    pr.println(lengthAndWidth(rwy));
-                    pr.println(elevation(rwy));
-                    pr.println("\tThe geographic location of the thresholds is:");
-                    pr.println(thresholdGeoLoc(rwy.identification, rwy.thr1Coordinates));
-                    pr.println(thresholdGeoLoc(rwy.identification, rwy.thr2Coordinates));
-                } else {
-                    pr.println("The runway %ID is in the database, but no further data about it are provided."
+                if (!rwy.isDetailed) {
+                    pr.println("ATTENTION! The runway %ID is in the database, but no enough data about it are provided."
                                .replace("%ID", rwy.identification));
                 }
+                pr.println(lengthAndWidth(rwy));
+                pr.println(elevation(rwy));
+                pr.println(coverage(rwy));
+                pr.println("\tThe geographic location of the thresholds is:");
+                pr.println(thresholdGeoLoc(rwy.identification, rwy.thr1Coordinates));
+                pr.println(thresholdGeoLoc(rwy.identification, rwy.thr2Coordinates));
             }
             pr.println(Utilities.sectionSeparator("End of information about %ICAO airport."
                                                    .replace("%ICAO", apt.icaoCode)));
@@ -110,9 +114,26 @@ public class AirportInfoPlugin implements Plugin {
     }
 
     /**
-     * Sets the geographic loaction {@code String} result based on the information
+     * Sets the runway coverage {@code String} result based on the information
      * about given {@code Runway} in the rwy parameter.
-     * @param icaoID The airport's ICAO identification code.
+     *
+     * @param rwy The runway object whose coverage will be inspected.
+     * @return The final {@code String} to be printed.
+     */
+    String coverage(Runway rwy) {
+        String coverage = rwy.coverage;
+
+        if (rwy.coverage.length() > 1)
+            return "\tThe runway is made of: %COVERAGE"
+                   .replace("%COVERAGE", coverage);
+        else return "\tThe material used for the runway construction is not specified or unknown";
+    }
+
+    /**
+     * Sets the geographic location {@code String} result based on the information
+     * about given {@code Runway} in the rwy parameter.
+     *
+     * @param icaoID      The airport's ICAO identification code.
      * @param coordinates The coordinates to inspect.
      * @return The final {@code String} to be printed.
      */
@@ -135,18 +156,19 @@ public class AirportInfoPlugin implements Plugin {
     /**
      * Sets the length and width {@code String} result based on the information
      * about given {@code Runway} in the rwy parameter.
+     *
      * @param rwy The runway whose length and width will be inspected.
      * @return The final {@code String} to be printed
      */
     @NotNull String lengthAndWidth(@NotNull Runway rwy) {
-        if ("NaN".equals(rwy.length.toString()) ||
+        /*if ("NaN".equals(rwy.length.toString()) ||
             "NaN".equals(rwy.width.toString())) {
             return "\tEither the length or the width of the %ID runway is unknown."
                     .replace("%ID", rwy.identification);
-        } else {
+        } else */{
             String trLength = decForm.format(Utilities.unitsConverter(rwy.length, ftToM));
             String trWidth  = decForm.format(Utilities.unitsConverter(rwy.width,ftToM));
-            return "\tIt's length is: %LENGTH feet (%LCONV meters) and width: %WIDTH feet (%WCONV meters)."
+            return "\tThe length: %LENGTH feet (%LCONV meters)\n\tThe width : %WIDTH feet (%WCONV meters)."
                     .replace("%LENGTH",String.valueOf(rwy.length))
                     .replace("%WIDTH", String.valueOf(rwy.width))
                     .replace("%LCONV", trLength)
@@ -158,8 +180,9 @@ public class AirportInfoPlugin implements Plugin {
     /**
      * Sets the elevation {@code String} result based on the information about
      * given {@code Runway} in the rwy parameter.
-     * @param rwy The runway whose length and width will be inspected.
-     * @return The final {@code String} to be printed
+     *
+     * @param  rwy The runway whose length and width will be inspected.
+     * @return The final {@code String} to be printed.
      */
     @NotNull String elevation(@NotNull Runway rwy) {
         int elevSlashIndex = rwy.elevations.indexOf("/");

@@ -21,6 +21,20 @@ public class Utilities {
         return lowerBound <= number && number <= upperBound;
     }
 
+    /**
+     * @param conversionNeeded The flag indicating whether the conversion should
+     *                         be actually performed. The conversion can be
+     *                         explicitely defined as true, or expressed by any
+     *                         boolean condition.
+     * @param valueToConvert   The {@code String} value to be converted.This value
+     *                         is parsed to the double value in the
+     *                         {@link #unitsConverter(String, double)} method.
+     * @param constant         The constant used for the conversion of the
+     *                         {@code valueToConvert} parameter.
+     * @param finalUnit        Optional argument specifying the unit for the result.
+     * @return  The {@code String} representing result of the conversion of the
+     *          {@code valueToConvert} parameter multiplied by the {@code constant}.
+     */
     static @NotNull String conversion(boolean conversionNeeded, String valueToConvert, double constant, String finalUnit) {
         if (conversionNeeded)
             return  " (%s %UNIT)"
@@ -31,7 +45,8 @@ public class Utilities {
 
     /**
      * Fixed multiplication converter. Converts a value based on the constant.
-     * @param arg the value to be converted.
+     * @param arg       The value to be converted.
+     * @param constant  The constant multiplied to the {@code arg}
      * @return Returns the {@code arg} parameter value after conversion.
      */
     static double unitsConverter(double arg, double constant) {
@@ -39,11 +54,13 @@ public class Utilities {
     }
 
     /**
-     * Wrapper around constantConverter(double, double) method. Casts the {@code arg}
-     * string to double and converts it using {@code constantConverter(double, double)}.
-     * @param arg Argument to be parsed and converted.
-     * @param constant The constant multiplied to the {@code arg}
-     * @return converted value from {@code arg}
+     * An alternative for {@link #unitsConverter(double, double)} method. Casts
+     * the {@code arg} String to double value and converts it using the method
+     * mentioned in the link.
+     * @param arg       Argument to be parsed and converted.
+     * @param constant  The constant multiplied to the {@code arg}
+     * @return The {@code arg} value converted to another units using the
+     *         {@code constant}.
      * @see #unitsConverter(double, double)
      */
     static @NotNull String unitsConverter(String arg, double constant) {
@@ -56,14 +73,13 @@ public class Utilities {
     }
 
     /**
-     * Parses the {@code String} parameter supposed to be double number. Used
-     * primarily in order to avoid code repetition. The value is expected to be
-     * positive.
+     * Parses the {@code String} parameter supposed to be double number.
+     *
      * @param strNum The string to be parsed.
      * @return Double number value of {@code strNum} parameter or NaN if something
      *         goes wrong.
      */
-    static double parseNum(String strNum) {
+    static double parseDouble(String strNum) {
         double num;
         try { num = Double.parseDouble(strNum); }
         catch (NumberFormatException e) { num = Double.NaN; }
@@ -72,8 +88,10 @@ public class Utilities {
     }
 
     /**
-     * @param sectionName the argument to be put between the separator
-     * @return the constant separator
+     * The method provides the separator for different sections of the output text.
+     *
+     * @param sectionName The argument to be put between the separator.
+     * @return The separator String.
      */
     static @NotNull String sectionSeparator(String sectionName) {
         return "----------------------------------------------- %s ------------------------------------------------"

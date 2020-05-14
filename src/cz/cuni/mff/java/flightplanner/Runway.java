@@ -2,6 +2,10 @@ package cz.cuni.mff.java.flightplanner;
 
 import java.util.*;
 
+/**
+ * The class which represents a Runway object of the specified airport for better
+ * understanding of its components.
+ */
 public class Runway {
 
     Double[] thr1Coordinates, thr2Coordinates;
@@ -20,18 +24,18 @@ public class Runway {
             this.truehdgs = "%F/%S".replace("%F", items[9])
                                    .replace("%S", items[15]);
             this.thr1Coordinates = new Double[]{
-                    Utilities.parseNum(items[6]),
-                    Utilities.parseNum(items[7])
+                    Utilities.parseDouble(items[6]),
+                    Utilities.parseDouble(items[7])
             };
             this.thr2Coordinates = new Double[]{
-                    Utilities.parseNum(items[12]),
-                    Utilities.parseNum(items[13])
+                    Utilities.parseDouble(items[12]),
+                    Utilities.parseDouble(items[13])
             };
             this.elevations = "%F/%S".replace("%F", items[8])
                                      .replace("%S", items[14]);
             this.coverage   = items[2].toLowerCase();
-            this.length     = Utilities.parseNum(items[0]);
-            this.width      = Utilities.parseNum(items[1]);
+            this.length     = Utilities.parseDouble(items[0]);
+            this.width      = Utilities.parseDouble(items[1]);
             this.isDetailed = normalize(this);
         } catch (NullPointerException ignored) { }
     }
@@ -40,26 +44,32 @@ public class Runway {
      * Checks for the relevance of {@code Runway} object and replaces invalid
      * fields with default "unknown" values.
      * @param runway The runway to check and normalize.
-     * @return The flag indicating that more data about runway are available.
+     * @return The flag indicating that enough data about runway are available.
      */
     private boolean normalize(Runway runway) {
+        int countUnknownInfo = 0;
         boolean unkLength = false, unkWidth = false,
-                unkHDGs   = false, unkElevs = false;
+                unkHDGs   = false, unkElevs = false,
+                unkCover  = false;
         if ("NaN".equals(String.valueOf(runway.length))) {
-            unkLength = true;
+            countUnknownInfo++;
         }
         if ("NaN".equals(String.valueOf(runway.width))) {
-            unkWidth = true;
+            countUnknownInfo++;
         }
         if ("/".equals(runway.truehdgs)) {
             runway.truehdgs = "UNKNOWN/UNKNOWN";
-            unkHDGs = true;
+            countUnknownInfo++;
         }
         if ("/".equals(runway.elevations)) {
             runway.elevations = "UNKNOWN/UNKNOWN";
-            unkElevs = true;
+            countUnknownInfo++;
         }
-        return !unkLength || !unkWidth || !unkHDGs || !unkElevs;
+        if (runway.coverage.length() <= 2) {
+            runway.coverage = "UNKNOWN/NOT SPECIFIED";
+            countUnknownInfo++;
+        }
+        return countUnknownInfo < 3;
     }
 
     /**

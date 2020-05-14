@@ -7,25 +7,30 @@ import java.util.Map;
 
 /**
  * The METARProcessor is the class responsible for parsing, modifying
- * and processing all the .txt files with METARs.
- * This class processes and decodes all the files into the
- * comprehensible language.
+ * and processing the file(s) with METAR entries. This class processes and decodes
+ * all the files into the comprehensible language.
  */
 class METARDecoder {
 
     private static final Map<String, String> metarDict = new HashMap<>();
+    /**
+     * The constant pattern which makes part of a correct METAR.
+     */
     private static final String windPttrn     = "((VRB)[0-9]{2}|[0-9]{5})(G[0-9]{2})?(KT|MPS)",
-                                vartnPttrn    = "[0-9]{3,4}V[0-9]{3,4}",
+                                vartnPttrn    = "[0-9]{3,4}V(P)?[0-9]{3,4}",
                                 vsbltyPttrn   = "[0-9]{4}|[0-9 /.]{1,5}SM",
-                                rvrPttrn      = "R[0-9]{2}[LCR]?/(P|M|[0-9]+V)?[0-9]+(FT)?[/DNU]?",
+                                rvrPttrn      = "R[0-9]{2}[LCR]?/([PM]?[0-9]+V)?[PM]?[0-9]+(FT)?(/[DNU])?",
                                 weatherPttrn  = "(RE|[+-])?[a-zA-Z]{2,}",
-                                tempPttrn     = "M?[0-9]{2}/M?[0-9]{2}",
+                                tempPttrn     = "((M?[0-9]{2})|(//))/((M?[0-9]{2})|(//))",
                                 cloudPttrn    = "(SKC|FEW|BKN|SCT|OVC|CLR)[0-9]{3}(CB|TCU|///)?",
                                 vrtclVisPttrn = "VV[0-9]{3}",
-                                pressurePttrn = "[AQ][0-9]{4}",
+                                pressurePttrn = "[AQ](([0-9]{4})|(////))",
                                 windshrPttrn  = "WS (ALL RWY|(RWY[0-9]{2}[LCR]?))",
                                 slpPttrn      = "SLP[0-9]{3}",
                                 rsgPttrn      = "[0-9]{2}[0-9/]{6}";
+    /**
+     * The constants used in aviation for the units conversion.
+     */
     private static final double knotsToKmH  = 1.852,
                                 ftToM       = 0.3048,
                                 inchTohPa   = 1/2.953,
@@ -37,27 +42,40 @@ class METARDecoder {
      *
      * @param metarToDecode The fixed METAR file to be decoded.
      * @param printer       The printer used for printing.
-     *
+     * @param fileOutput    The flag indicating that the output is directed to a
+     *                      file.
      * @return The exit code of the action. Any non-zero code means that an issue
-     * has occurred.
+     *         has occurred.
      */
-    int fileDecode(@NotNull File metarToDecode, @NotNull PrintStream printer) {
+    int fileDecode(@NotNull File metarToDecode, @NotNull PrintStream printer, boolean fileOutput) {
         int exitCode;
         if ((exitCode = checkAndSetMetarDict()) != 0) return exitCode;
 
         System.out.println(Utilities.sectionSeparator("METAR DECODING"));
         try (BufferedReader br = new BufferedReader(new FileReader(metarToDecode))) {
-             String line;
+             String line, fileOutputPath = null;
+
+             if (fileOutput) {
+                 fileOutputPath = metarToDecode.getAbsolutePath();
+             }
 
             boolean tokenPrint =
                     DialogCenter.getResponse(
                             "The tokens may help you understand what token is being decoded.",
                             "Should the token names be printed too? %OPT: ",
                             "Y",
-                            true);
-
+                            true),
+                    autoDecode =
+                    DialogCenter.getResponse(
+                            null,
+                            "Do you want to decode all METARs automatically without any further asking? %OPT: ",
+                            "Y",
+                            true),
+                    noDecode = false;
             System.out.println("All available METAR = \"%DEFINITION\" are progressively decoded until you decide not to decode them anymore."
                                .replace("%DEFINITION", metarDict.get("METAR")));
+
+            int metarsDecoded = 0, metarsAvailable = 0;
 
             while ((line = br.readLine()) != null) {
                 if (line.isEmpty()) continue;
@@ -67,7 +85,7 @@ class METARDecoder {
                     line = br.readLine();
                     metarEntry.append(line);
                 }
-
+                if (noDecode) continue;
                 String[] tidyMETAR = csvMETARtidy(metarEntry.toString()
                                                                      .replace("=", "")
                                                                      .strip());
@@ -77,19 +95,30 @@ class METARDecoder {
                        decision = finalMetar.length() > 80
                             ? "(METAR too long to display)"
                             : finalMetar;
-
-                if (DialogCenter.getResponse(null,
-                                             "Do you want \"%DECISION\" to be decoded? %OPT: "
-                                                     .replace("%DECISION", decision),
-                                             "Y",
-                                             false)
+                if (finalMetar.endsWith("NIL")) {
+                    continue;
+                }
+                metarsAvailable++;
+                if (autoDecode || DialogCenter.getResponse(
+                                            null,
+                                            "Do you want \"%DECISION\" to be decoded? %OPT: "
+                                                    .replace("%DECISION", decision),
+                                            "Y",
+                                            false)
                    ) {
                     metarEntryDecode(finalMetar, printer,
-                                     initInfo, tokenPrint);
+                                     initInfo, tokenPrint, fileOutputPath);
                     printer.printf("%n");
-                } else break;
+                    metarsDecoded++;
+                } else noDecode = true;
             }
-            System.out.println("No more METARs for the specified period are available.\n");
+            if (metarsAvailable == 0) {
+                printer.println("No METAR was accessible for the specified period and airport.");
+            } else {
+                System.out.printf("METARs available: %d%nMETARs decoded  : %d%n",
+                                  metarsAvailable,                 metarsDecoded);
+            }
+            System.out.println(Utilities.sectionSeparator("END OF METAR DECODING"));
         } catch (IOException e) {
             System.err.println("File reading failed. The METAR will not be decoded.");
             return 1;
@@ -141,20 +170,31 @@ class METARDecoder {
     /**
      * Decode a METAR unit specified in the {@code metarEntry}. The fixed-structured
      * METAR is divided into tokens. Each token is treated based on the category it
-     * belongs to.
+     * belongs to. METAR entry is being decoded using the
+     * <a href="http://meteocentre.com/doc/metar.html">US/CAN METAR explanation</a>
+     * and
+     * <a href="https://www.skybrary.aero/index.php/Meteorological_Terminal_Air_Report_(METAR)">general METAR explanation</a>
+     * websites.
      *
      * @param metarEntry The actual METAR unit which will be decoded.
-     * @param printer The printer used for printing.
+     * @param printer    The printer used for printing.
+     * @param initInfo   The String containing initial information to be printed
+     *                   before each decoding.
      * @param tokenPrint The flag which indicates whether each token should be
      *                   highlighted before its translation.
+     * @param fileOutputPath  The String which indicates the absolute path to the
+     *                        output file or {@code null} in case the output is
+     *                        not directed to the file.
      */
-    void metarEntryDecode(@NotNull String metarEntry, @NotNull PrintStream printer, String initInfo, boolean tokenPrint) {
+    void metarEntryDecode(@NotNull String metarEntry, @NotNull PrintStream printer,
+                          String initInfo, boolean tokenPrint, @Nullable String fileOutputPath) {
 
         String[] tokens = metarEntry.split("\\s+");
         printer.println(Utilities.sectionSeparator(metarEntry));
         printer.println(initInfo.replace("%TYPE", tokens[0]));
-
-        for (int i = 3; i < tokens.length; i++) { //0 -> dateTime, 1 -> metar type, 2 -> airport (already noted), 3 -> day of (unspecified) month and time in zulu
+        // 0 -> METAR/SPECI type, 1 -> airport ICAO, 2 -> day and time in zulu of metar publication, 3+ -> tokens to be decoded
+        // for loop iterates through the tokens and for each determines what information the token represents
+        for (int i = 3; i < tokens.length; i++) {
             if (tokens[i].matches(windPttrn)) {    //wind direction and speed information
                 printer.println(windDirSpd(tokens[i], windPttrn, tokenPrint));
                 continue;
@@ -167,9 +207,11 @@ class METARDecoder {
                 printer.println(visibility(tokens[i], vsbltyPttrn, tokenPrint));
                 continue;
             }
-            //the following if condition treats the "1 1/4SM" example
-            if (tokens[i].matches("[0-9]+") && (i + 1 < tokens.length) &&
-                tokens[i + 1].matches(vsbltyPttrn)) {
+            //the following if condition treats the "1 1/4SM" case
+            if (tokens[i].matches("[0-9]+") &&
+                (i + 1 < tokens.length)           &&
+                tokens[i + 1].matches(vsbltyPttrn)
+                ) {
                 printer.println(visibility(tokens[i] + " " + tokens[i + 1], vsbltyPttrn, tokenPrint));
                 i++;
                 continue;
@@ -210,32 +252,45 @@ class METARDecoder {
                 printer.println(rwyStateGroup(tokens[i], rsgPttrn, tokenPrint));
             }
             if (tokens[i].matches("[a-zA-Z]+")) {
-                String result = metarDict.get(tokens[i]);
-                if (result != null) {
-                    printer.printf("%s: %s.%n", tokens[i], result);
+                String tokenMeaning = metarDict.get(tokens[i]);
+                if (tokenMeaning != null) {
+                    printer.printf("%s: %s.%n", tokens[i], tokenMeaning);
                 }
             } else {
                 printer.println(tokens[i] + ": Unknown token.");
             }
         }
         printer.println(Utilities.sectionSeparator("END OF METAR"));
-        // TODO: 07/05/2020 if the printer is fileoutputstream printer -> write the information about successful writing of metars
+
+        if (fileOutputPath != null) {
+            System.out.printf("METAR decoding was successfully written to the %s file.%n%n",
+                              fileOutputPath);
+            fileOutputPath = null; // setting the value to null in order to avoid repeated messages for the same file
+        }
     }
 
     /**
+     * Decodes the "runway state group" part of a METAR. This part provides the
+     * information about any runway contamination (e.g. snow, water, oil) which
+     * may impact the braking action and aircraft safety during landing. The
+     * METAR explanation sources are precised in
+     * {@link #metarEntryDecode(String, PrintStream, String, boolean, String)} method.
      *
-     * @param token
-     * @param rsgPttrn
-     * @param tokenPrint
-     * @return
+     * @param token      The raw RSG description.
+     * @param rsgPttrn   The regex to ensure that the token is classified correctly.
+     * @param tokenPrint The flag indicating whether to highlight the separation
+     *                   between different sections.
+     * @return The decoded result {@code String} based on the information in the
+     *         raw RSG token.
      */
     static @NotNull String rwyStateGroup(@NotNull String token, @NotNull String rsgPttrn, boolean tokenPrint) {
+        // example of a RSG descriptor: 8849//91
         String init = initTokenDecoder(token,rsgPttrn,tokenPrint);
         // the token contains only numbers, "/" or substring "CLRD" on indexes 2 - 5
 
         boolean cleared  = token.contains("CLRD");
-        String  rwyModif = getRwyModificator(token.substring(0,2)); // rwy modificator is always present, however it's value has to be parsed
-        String  brkAction = getBrakingAction(token.substring(6));
+        String  rwyModif = getRSGRwyModificator(token.substring(0,2)); // rwy modificator is always present, however it's value has to be parsed
+        String  brkAction = getRSGBrakingAction(token.substring(6));
 
         if (cleared) {
             return "%INITRunway state descriptor: Runway %RWY cleared, %BRKACT"
@@ -244,18 +299,18 @@ class METARDecoder {
                     .replace("%BRKACT", brkAction);
         }
 
-        char    contaminationType    = token.charAt(2),   // runway deposit position
-                contaminationExtent = token.charAt(3);    // runway contamination extent position
+        char    contaminationType    = token.charAt(2),    // runway deposit position
+                contaminationExtent  = token.charAt(3);    // runway contamination extent position
 
-        String  contaminationDepth = getContaminationDepth(token.substring(4, 6));
+        String  contaminationDepth = getRSGContaminationDepth(token.substring(4, 6));
 
         return "%INITRunway state descriptor:\n\tRunway(s) concerned: %RWY\n\t %vCON: %CONTAM\n\t %vEXT: %EXTENT\n\t%vDEP: %DEPTH\n\t%vBR: %BRACT"
                 .replace("%INIT", init)
                 .replace("%RWY", rwyModif)
                 .replace("%vCON", String.valueOf(contaminationType))
-                .replace("%CONTAM", getRwyContamination(contaminationType))
+                .replace("%CONTAM", getRSGRwyContamination(contaminationType))
                 .replace("%vEXT", String.valueOf(contaminationExtent))
-                .replace("%EXTENT", getContaminationExtent(contaminationExtent))
+                .replace("%EXTENT", getRSGContaminationExtent(contaminationExtent))
                 .replace("%vDEP", token.substring(4,6))
                 .replace("%DEPTH", contaminationDepth)
                 .replace("%vBR", token.substring(6))
@@ -263,11 +318,15 @@ class METARDecoder {
     }
 
     /**
-     *
-     * @param arg
-     * @return
+     * The method used for {@link #rwyStateGroup(String, String, boolean)}.
+     * This method decodes a part of the RSG descriptor based on the descriptor
+     * explanation at the METAR explanation websites mentioned in
+     * {@link #metarEntryDecode(String, PrintStream, String, boolean, String)} method
+     * documentation.
+     * @param arg The character whose meaning is searched for.
+     * @return    The meaning of the {@code arg} character.
      */
-    static String getRwyContamination(char arg) {
+    static @NotNull String getRSGRwyContamination(char arg) {
         Map<Character, String> rwyDepositDict = new HashMap<>();
         rwyDepositDict.put('0', "Clear and dry");
         rwyDepositDict.put('1', "Damp");
@@ -285,11 +344,15 @@ class METARDecoder {
     }
 
     /**
-     *
-     * @param arg
-     * @return
+     * The method used for {@link #rwyStateGroup(String, String, boolean)}.
+     * This method decodes a part of the RSG descriptor based on the descriptor
+     * explanation at the METAR explanation websites mentioned in
+     * {@link #metarEntryDecode(String, PrintStream, String, boolean, String)} method
+     * documentation.
+     * @param arg The character whose meaning is searched for.
+     * @return    The meaning of the {@code arg} character.
      */
-    static String getContaminationExtent(char arg) {
+    static @NotNull String getRSGContaminationExtent(char arg) {
         Map<Character, String> rwyContamiDict = new HashMap<>();
         rwyContamiDict.put('1', "Less than 10%");
         rwyContamiDict.put('2', "11% to 25%");
@@ -301,11 +364,15 @@ class METARDecoder {
     }
 
     /**
-     *
-     * @param arg
-     * @return
+     * The method used for {@link #rwyStateGroup(String, String, boolean)}.
+     * This method decodes a part of the RSG descriptor based on the descriptor
+     * explanation at the METAR explanation websites mentioned in
+     * {@link #metarEntryDecode(String, PrintStream, String, boolean, String)} method
+     * documentation.
+     * @param arg The String whose meaning is searched for.
+     * @return    The meaning of the {@code arg} String.
      */
-    static String getContaminationDepth(String arg) {
+    static @NotNull String getRSGContaminationDepth(String arg) {
         Map<String, String> depositDepth   = new HashMap<>();
         depositDepth.put("00", "Less than 1mm");
         //values between 01 - 90 correspond to their value in millimeters
@@ -332,13 +399,15 @@ class METARDecoder {
     }
 
     /**
-     * This method takes {@code token} parameter which represents the temperature
-     * encoding and translates it accordingly.
-     *
-     * @param rwy the runway number
-     * @return the runway identificator represented in the {@code rwy}
+     * The method used for {@link #rwyStateGroup(String, String, boolean)}.
+     * This method decodes a part of the RSG descriptor based on the descriptor
+     * explanation at the METAR explanation websites mentioned in
+     * {@link #metarEntryDecode(String, PrintStream, String, boolean, String)} method
+     * documentation.
+     * @param rwy The String runway representation whose meaning is searched for.
+     * @return    The meaning of the {@code arg} parameter.
      */
-    static @NotNull String getRwyModificator(String rwy) {
+    static @NotNull String getRSGRwyModificator(String rwy) {
         int rwyID = Integer.parseInt(rwy); // when invoked from
         String rwyModif = "";
         if (rwyID == 88) {
@@ -355,12 +424,15 @@ class METARDecoder {
     }
 
     /**
-     * The method which decodes the {@code arg} representing the braking coefficient.
-     *
-     * @param arg the braking action to be explained
-     * @return the value of the braking action
+     * The method used for {@link #rwyStateGroup(String, String, boolean)}.
+     * This method decodes a part of the RSG descriptor based on the descriptor
+     * explanation at the METAR explanation websites mentioned in
+     * {@link #metarEntryDecode(String, PrintStream, String, boolean, String)} method
+     * documentation.
+     * @param arg The String whose meaning is searched for.
+     * @return    The meaning of the {@code arg} parameter.
      */
-    static @NotNull String getBrakingAction(String arg) {
+    static @NotNull String getRSGBrakingAction(String arg) {
         Map<String, String> brakingFricti = new HashMap<>();
 
         brakingFricti.put("91", "action poor");
@@ -391,10 +463,11 @@ class METARDecoder {
      * This method takes {@code token} parameter which represents the sea-level
      * pressure (SLP) and translates it accordingly.
      *
-     * @param token the SLP to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to highlight also the corresponding token name
-     * @return the information about sea-level pressure
+     * @param token      The SLP to be translated.
+     * @param pattern    Regular expression to be matched with {@code token}.
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The information about sea-level pressure.
      */
     static @NotNull String seaLvlPressure(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
@@ -404,9 +477,12 @@ class METARDecoder {
         try {
             double slPressure = Double.parseDouble(token.substring(3)) / 10;
             if (slPressure >= 50.0)
-                seaLevelPressure = "9%f".replace("%f", String.valueOf(slPressure));
-            else
-                seaLevelPressure = "10%f".replace("%f", String.valueOf(slPressure));
+                seaLevelPressure = "9%s".replace("%s", String.valueOf(slPressure));
+            else {
+                if (slPressure < 10) {
+                    seaLevelPressure = "100%s".replace("%s",String.valueOf(slPressure));
+                } else seaLevelPressure = "10%s".replace("%s", String.valueOf(slPressure));
+            }
             conversion = Utilities.conversion(true,
                                     seaLevelPressure.substring(0,seaLevelPressure.indexOf(".")),
                                     hPaToInch,
@@ -421,13 +497,14 @@ class METARDecoder {
     }
 
     /**
-    * This method explains the warning of possible wind shear existence in the
+    * This method explains the warning of possible wind-shear existence in the
     * vicinity of the airport.
     *
-    * @param token wind-shear token to be translated
-    * @param pattern regular expression to be matched with {@code token}
-    * @param tokenPrint user's decision to highlight also the corresponding token name
-    * @return wind shear warning explanation
+    * @param token      Wind-shear token to be translated.
+    * @param pattern    Regular expression to be matched with {@code token}.
+    * @param tokenPrint The flag which indicates whether the token should be
+     *                  highlighted before its translation.
+    * @return           Wind shear warning explanation.
     */
     static @NotNull String windshearWarning(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
@@ -447,17 +524,23 @@ class METARDecoder {
      * This method takes {@code token} parameter which represents the pressure
      * information and translates it accordingly.
      *
-     * @param token encoded pressure information to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to highlight also the corresponding token name
-     * @return the information about pressure using correct units.
+     * @param token      Encoded pressure information to be translated
+     * @param pattern    Regular expression to be matched with {@code token}
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The information about pressure using correct units.
      */
     static @NotNull String pressure(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
 
         String  value = token.substring(1),
-                unit  = token.startsWith("Q") ? "hPa" : "inches",
-                conversion = "hPa".equals(unit)
+                unit  = token.startsWith("Q") ? "hPa" : "inches";
+        if ("////".equals(value)) {
+            return "%INITSea-level pressure (QNH): Pressure not available."
+                    .replace("%INIT",init);
+        }
+
+        String  conversion = "hPa".equals(unit)
                                 ? Utilities.conversion(true,value,hPaToInch,"inches")
                                 : Utilities.conversion(true,value,inchTohPa,"hPa");
 
@@ -467,7 +550,7 @@ class METARDecoder {
                    .replace("%sP", value.substring(2));
         }
 
-        return "%INITSea level pressure (QNH): %VALUE %UNIT%CONVERSION."
+        return "%INITSea-level pressure (QNH): %VALUE %UNIT%CONVERSION."
                 .replace("%INIT", init)
                 .replace("%VALUE", value)
                 .replace("%UNIT", unit)
@@ -478,10 +561,12 @@ class METARDecoder {
      * This method takes {@code token} parameter which represents the vertical
      * visibility and translates it accordingly.
      *
-     * @param token the vertical visibility representation to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to highlight also the corresponding token name
-     * @return the information about vertical visibility using correct units.
+     * @param token      The vertical visibility representation to be translated.
+     * @param pattern    Regular expression to be matched with {@code token}.
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The information about vertical visibility using correct
+     *                   units.
      */
     static @NotNull String verticalVisibility(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token,pattern, tokenPrint);
@@ -500,10 +585,11 @@ class METARDecoder {
      * This method takes {@code token} the cloud type and height representation
      * and translates it accordingly.
      *
-     * @param token the clound representation to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to highlight also the corresponding token name
-     * @return the cloud information explanation
+     * @param token      The clound representation to be translated.
+     * @param pattern    Regular expression to be matched with {@code token}.
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The cloud information explanation.
      */
     static @NotNull String cloudLayer(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token,pattern, tokenPrint);
@@ -542,23 +628,34 @@ class METARDecoder {
      * This method takes {@code token} parameter which represents the temperature
      * encoding and translates it accordingly.
      *
-     * @param token the temperature to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to highlight also the corresponding token name
-     * @return the decoded temperature
+     * @param token      The temperature to be translated.
+     * @param pattern    Regular expression to be matched with {@code token}.
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           Decoded temperature.
      */
     static @NotNull String temperature(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
 
-        String[] temps   = token.split("/");
-        String  temp     = temps[0].startsWith("M")
-                                ? temps[0].replace("M", "-")
-                                : temps[0],
+        if (token.equals("/////"))
+            return "%INITTemperature: Temperature is not available."
+                   .replace("%INIT",init);
+
+        String[] temps   = token.split("/",-1);
+        String   temp    = temps[0].startsWith("M")
+                                ? "%TEMP %UNIT."
+                                  .replace("%TEMP",temps[0].replace("M", "-"))
+                                : temps[0].isBlank()
+                                    ? "Temperature not available."
+                                    : "%TEMP %UNIT.".replace("%TEMP", temps[0]),
                 dewPoint = temps[1].startsWith("M")
-                                ? temps[1].replace("M","-")
-                                : temps[1];
+                                ? "%TEMP %UNIT."
+                                  .replace("%TEMP",temps[1].replace("M","-"))
+                                : temps[1].isBlank()
+                                        ? "Dewpoint not available."
+                                        : "%DEW %UNIT.".replace("%DEW", temps[1]);
         String  unit = "degrees";
-        return "%INITTemperature: %TEMP %UNIT.\nDewpoint   : %DEWPOINT %UNIT."
+        return "%INITTemperature: %TEMP\nDewpoint   : %DEWPOINT"
                 .replace("%INIT", init)
                 .replace("%TEMP", temp)
                 .replace("%DEWPOINT", dewPoint)
@@ -569,10 +666,11 @@ class METARDecoder {
      * This method takes {@code token} parameter which represents the weather
      * phenomenon abbreviation and translates it accordingly.
      *
-     * @param token is the weather token to be decoded
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to highlight also the corresponding token name
-     * @return the wind variation explanation
+     * @param token      The weather phenomenon token to be decoded.
+     * @param pattern    Regular expression to be matched with {@code token}.
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The wind variation explanation.
      */
     static @NotNull String weatherPhenomena(@NotNull String token, String pattern, boolean recentWeather, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
@@ -594,8 +692,10 @@ class METARDecoder {
         }
 
         String  phenomenon = metarDict.get(token),
-                recent     = recentWeather ? "Recent " : "";
+                recent     = recentWeather ? "Recent " : "",
+                weatherKey = "Weather: ";
         StringBuilder sb = new StringBuilder();
+        boolean isUnknown = false;
 
         if (phenomenon == null) {
             for (int i = 0; i < token.length() / 2; i++) {
@@ -603,11 +703,16 @@ class METARDecoder {
                         phenomenValue = metarDict.get(phenomenKey);
                 if (phenomenValue != null) {
                     sb.append(phenomenValue).append(" ");
-                }
+                } else isUnknown = true;
+            }
+            if (isUnknown) {
+                sb.append("Unknown token");
+                weatherKey = "";
             }
             phenomenon = sb.toString().strip();
         }
-        return "%INIT%RECENTWeather: %TOKENB = %MODIFIER %PHENOMENON."
+        return "%INIT%RECENT%WEATHER%TOKENB = %MODIFIER %PHENOMENON."
+                .replace("%WEATHER",weatherKey)
                 .replaceFirst("%INIT",init)
                 .replace("%TOKENB",tokenBUp)
                 .replace("%RECENT", recent)
@@ -620,10 +725,11 @@ class METARDecoder {
      * recognizing the different formats and modifiers (Europe/US, Canada) for
      * specified airport.
      *
-     * @param token the runway visibility string to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to print also the corresponding token name
-     * @return the translation of at-runway level visibility information
+     * @param token      The runway visibility string to be translated
+     * @param pattern    Regular expression to be matched with {@code token}
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The translation of at-runway level visibility information.
      */
     static @NotNull String rvrVisibility(@NotNull String token, String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
@@ -647,12 +753,35 @@ class METARDecoder {
                 if (token.substring(slash)
                          .matches("/" + vartnPttrn + ".*")) {
                     int _V = token.indexOf('V');
+                    String modifier1 = "";
+                    if (token.charAt(_V + 1) == 'P') {
+                        modifier1 = "more than ";
+                        token = token.replace("VP","V");
+                    }
+                    if (token.charAt(_V + 1) == 'M') {
+                        modifier1 = "less than ";
+                        token = token.replace("VM","V");
+                    }
                     String fVis = token.substring(slash + 1, _V),    // the variable visibility value is expected
                            sVis = token.substring(_V + 1, _V + 5);   // to have format nnnnVnnnn where n = [0-9]
 
-                    modifier = "variable between %FVIS %UNIT and %SVIS %UNIT "
+                    String varConversion = "feet".equals(units)
+                            ? "%FCONV and%SCONV"
+                              .replace("%FCONV",Utilities.conversion(true,
+                                                                                     fVis,
+                                                                                     ftToM,
+                                                                                     "meters"))
+                              .replace("%SCONV",Utilities.conversion(true,
+                                                                                      sVis,
+                                                                                      ftToM,
+                                                                                      "meters"))
+                            : "";
+
+                    modifier = "variable between %FVIS %UNIT and %MOD1%SVIS %UNIT%VARCONV"
+                                .replace("%MOD1",modifier1)
                                 .replace("%FVIS", fVis)
-                                .replace("%SVIS", sVis);
+                                .replace("%SVIS", sVis)
+                                .replace("%VARCONV", varConversion);
                 }
                 break;
         }
@@ -665,7 +794,7 @@ class METARDecoder {
                                 : "";
 
         String conversion = token.contains("FT")
-                ? Utilities.conversion(true, value, ftToM, "meters")
+                ? Utilities.conversion(!value.isBlank(), value, ftToM, "meters")
                 : "";
 
         return "%INITRunway %RUNWAY, touchdown zone visual range is %MODIFIER%VALUE %UNIT%CONVERSION and %TREND is expected."
@@ -682,10 +811,11 @@ class METARDecoder {
      * The visibility translator which looks at the visibility unit and returns
      * correct value.
      *
-     * @param token the visibility string to be translated
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to print also the corresponding token name
-     * @return the information about visibility using correct units.
+     * @param token      The visibility string to be translated.
+     * @param pattern    Regular expression to be matched with {@code token}
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           The information about visibility using correct units.
      */
     static @NotNull String visibility(@NotNull String token, String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
@@ -724,11 +854,12 @@ class METARDecoder {
      * This method takes {@code token} parameter and the regular expression
      * this parameter matches and explains the numbers in the appropriate way.
      *
-     * @param token is the {@code String} to translate. It has to match provided
-     *                {@code pattern} expression
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to print also the corresponding token name
-     * @return {@code token} with added explanation.
+     * @param token   The {@code String} to translate. It has to match provided
+     *                {@code pattern} expression.
+     * @param pattern Regular expression to be matched with {@code token}.
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           {@code token} with added explanation.
      */
     static @NotNull String windDirSpd(@NotNull String token, String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);  //normally the pattern is dddssUU(U) or dddssGssUU(U) where d -> direction, s -> speed and U -> unit char
@@ -768,10 +899,11 @@ class METARDecoder {
      * This method takes {@code token} parameter which represents the wind
      * variation and translates it accordingly.
      *
-     * @param token is the {@code String} to be translated.
-     * @param pattern regular expression to be matched with {@code token}
-     * @param tokenPrint user's decision to print also the corresponding token name
-     * @return the {@code String} which explains the wind variation
+     * @param token      The {@code String} to be translated.
+     * @param pattern    Regular expression to be matched with {@code token}
+     * @param tokenPrint The flag which indicates whether the token should be
+     *                   highlighted before its translation.
+     * @return           {@code String} which explains the wind variation.
      */
     static @NotNull String windVariation(@NotNull String token, String pattern, boolean tokenPrint) {
         String init = initTokenDecoder(token, pattern, tokenPrint);
@@ -788,7 +920,7 @@ class METARDecoder {
     }
 
     /**
-     * Checks whether the dictionary with METAR/TAF terminology already exists.
+     * Checks whether the dictionary with METAR terminology already exists.
      * If it does not, then reads the .txt file containing the dictionary with
      * specified terminology and creates {@code Map<String,String> metarDict} map.
      *
@@ -803,9 +935,7 @@ class METARDecoder {
             if (metarDictLocation == null) {
                 System.err.println("The resource was not found.\n");
                 return 1;
-            } else System.err.println("Resource found successfully at %PATH"
-                                      .replace("%PATH",metarDictLocation.getAbsolutePath()));
-
+            }
             try (BufferedReader br = new BufferedReader(new FileReader(metarDictLocation))) {
                 String dictEntry;
                 while ((dictEntry = br.readLine()) != null) {
@@ -824,11 +954,11 @@ class METARDecoder {
      * Method which initializes a token decoding session. It verifies that the
      * token matches the pattern and then prepares the first part of the resulting
      * token translation.
-     * @param token a part of the METAR
-     * @param pattern the pattern the token has to match
-     * @param tokenPrint the flag which indicates the token highlighting
-     * @return the "init" value for each token. It is either an empty string or
-     *         a highlighted token.
+     * @param token      A token: part of the METAR.
+     * @param pattern    The pattern the token has to match.
+     * @param tokenPrint The flag which indicates the token highlighting.
+     * @return           The "init" value for each token. It is either an empty
+     *                   string or a highlighted token.
      */
     static @NotNull String initTokenDecoder(@NotNull String token, @NotNull String pattern, boolean tokenPrint) {
         String result = "";
