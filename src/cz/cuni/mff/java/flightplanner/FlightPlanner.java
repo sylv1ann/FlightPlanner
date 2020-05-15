@@ -1,10 +1,9 @@
 package cz.cuni.mff.java.flightplanner;
 
 import java.util.List;
+import cz.cuni.mff.java.flightplanner.plugin.Plugin;
 
 public class FlightPlanner {
-
-    private static final String projectPackageName = "cz.cuni.mff.java.flightplanner";
 
     /**
      * The entry point to the program.
@@ -13,7 +12,7 @@ public class FlightPlanner {
     public static void main(String[] args) {
         List<Plugin> allPlugins, activePlugins;
 
-        allPlugins = Plugin.loadAllPlugins(projectPackageName);
+        allPlugins = Plugin.loadAllPlugins();
         DialogCenter.welcomeMenu();
         while (true) {
             activePlugins = DialogCenter.choosePlugins(allPlugins);

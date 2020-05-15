@@ -4,6 +4,10 @@ import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
+import cz.cuni.mff.java.flightplanner.plugin.Plugin;
+import cz.cuni.mff.java.flightplanner.util.FilesHandler;
+import cz.cuni.mff.java.flightplanner.util.NotNull;
+import cz.cuni.mff.java.flightplanner.util.Nullable;
 
 /**
  * The DialogCenter class provides the communication interface between the program
@@ -40,7 +44,7 @@ public class DialogCenter {
      *
      * @see #setFileOutputStream(boolean, String)
      */
-    static OutputStream chooseOutputForm(@NotNull String arg, boolean prompt, @Nullable String fileName) {
+    public static OutputStream chooseOutputForm(@NotNull String arg, boolean prompt, @Nullable String fileName) {
         OutputStream result;
 
         arg = (!arg.isEmpty() && !arg.startsWith(" "))
@@ -80,10 +84,9 @@ public class DialogCenter {
      * @return The {@code output stream} type to be used when printing gathered
      *         data.
      */
-    static OutputStream setFileOutputStream(boolean prompt, @Nullable String fileName) {
+    public static OutputStream setFileOutputStream(boolean prompt, @Nullable String fileName) {
 
-        String curDir = System.getProperty("user.dir"),
-               outPath = null;
+        String outPath = null;
 
         if (prompt) {
             System.out.printf("%n%s%n%s%n%s%n%s%n%s",
@@ -223,7 +226,7 @@ public class DialogCenter {
      *
      * @return Returns a string of all provided plugin IDs.
      */
-    static @NotNull String listAllPlugins(@NotNull List<Plugin> plugins) {
+    private static @NotNull String listAllPlugins(@NotNull List<Plugin> plugins) {
         StringBuilder result = new StringBuilder("{ ");
         plugins.forEach(pl -> result.append(pl.pluginID())
                                           .append(" "));
@@ -240,7 +243,7 @@ public class DialogCenter {
      *
      * @return Non-null {@code String} input given by a user.
      */
-    static @NotNull String getInput(boolean blankLineAllowed, boolean printNewLine) {
+    public static @NotNull String getInput(boolean blankLineAllowed, boolean printNewLine) {
         String line;
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         try {
@@ -273,8 +276,8 @@ public class DialogCenter {
      * @return {@code True}, if the beginnings of both user's answer and
      *         {@code trueAnswer} parameter are equal.
      */
-    static boolean getResponse(@Nullable String message, @NotNull String question,
-                               @NotNull  String trueAnswer, boolean blankAllowed) {
+    public static boolean getResponse(@Nullable String message, @NotNull String question,
+                                      @NotNull String trueAnswer, boolean blankAllowed) {
         String  optChoice = "(Y/n)";
         if (blankAllowed)
             System.out.println("\"Enter\" key press will decline automatically.");
