@@ -1,0 +1,62 @@
+#!/bin/sh
+
+# set -exo pipefail
+
+
+clean() {
+	mvn -q clean 2>/dev/null
+}
+
+build() {
+	echo "Preparing for the installation ..."
+	clean
+	mvn -q compile 2>/dev/null
+	echo "Build complete." 
+	BS="0"
+}
+
+install() {
+ 	echo "Installing ..."
+	mvn -q install 2>/dev/null
+	echo "FlightPlanner successfully installed."
+	IS="0"
+}
+
+
+if ! [ -d "output" ]; then
+	mkdir output
+fi
+
+if [ -d "target" ] && [ -n $( find ./ -name '*FlightPlanner.jar' ) ]; then
+	BS="0"
+	IS="0"
+fi
+
+if [ "$#" -gt 0 ]; then
+	CMD="$1"
+	case "$CMD" in
+		"build")
+			build
+			;;
+		"clean")
+			clean
+			;;
+		"install")
+			if [ -z "$BS" ]; then
+				build
+			fi
+			install
+			;;
+		"run")
+			if [ -z "$BS" ]; then
+				build
+			fi
+			if [ -z "$IS" ]; then
+				install
+			fi
+			clear
+			java -jar ./target/FlightPlanner.jar
+			;;
+		*) ;;
+	esac
+fi

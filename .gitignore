@@ -1,9 +1,7 @@
-*.class
-*.iml
-*.xml
+
 .idea/
-out/
-test/*
-[A-Z]*[0-9]*.txt
-*.csv
+FlightPlanner.iml
+examples/
+target/
+.gitignore
 
