@@ -4,4 +4,4 @@ FlightPlanner.iml
 examples/
 target/
 .gitignore
-
+javadoc/

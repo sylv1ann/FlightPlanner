@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"l":"cz.cuni.mff.java.flightplanner"},{"l":"cz.cuni.mff.java.flightplanner.dataobject"},{"l":"cz.cuni.mff.java.flightplanner.plugin"},{"l":"cz.cuni.mff.java.flightplanner.util"}]
