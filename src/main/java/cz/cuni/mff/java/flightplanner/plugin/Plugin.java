@@ -1,16 +1,6 @@
 package cz.cuni.mff.java.flightplanner.plugin;
 
-import java.io.File;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.regex.Matcher;
-import java.util.stream.Collectors;
+import java.util.*;
 
 import cz.cuni.mff.java.flightplanner.util.NotNull;
 import cz.cuni.mff.java.flightplanner.util.Utilities;
@@ -36,52 +26,12 @@ public interface Plugin {
     static @NotNull List<Plugin> loadAllPlugins() {
         ArrayList<Plugin> plugins = new ArrayList<>();
 
-        String packageName = Plugin.class.getPackageName();
-        String path = packageName.replaceAll("[.]", Matcher.quoteReplacement(File.separator)), name; //steps to create the absolute path
-        List<Class<?>> allPlugins = new ArrayList<>();
-        String[] classPathEntries = System.getProperty("java.class.path")
-                                          .split(System.getProperty("path.separator")); // takes all class paths in which it will search for classes
-        String classpathEntry;
-        if (classPathEntries.length > 0) {
-            classpathEntry = classPathEntries[0];
-        } else return plugins;
-        try {
-            if (classpathEntry.endsWith(".jar")) {
-                JarFile file = new JarFile(new File(classpathEntry));
-                List<JarEntry> jarClassEntries = file.stream()
-                                                .filter(jfile -> jfile.getRealName().endsWith(".class"))
-                                                .collect(Collectors.toList());
-                for (JarEntry jarClassEntry : jarClassEntries) {
-                    String jarFileName = jarClassEntry.getRealName();
-                    jarFileName = jarFileName.substring(0, jarFileName.length() - 6)
-                                             .replaceAll("/", ".");   // removes ".class" suffix
-                    Class<?> clazz = Class.forName(jarFileName); //recognises whether the clazz is a subclass of Plugin interface
-                    if (Plugin.class.isAssignableFrom(clazz))
-                        allPlugins.add(clazz);
-                }
-            } else {
-                File base = new File(classpathEntry + File.separatorChar + path);
-                for (File file : Objects.requireNonNull(base.listFiles())) {
-                    name = file.getName();
-                    if (name.endsWith(".class")) {
-                        name = name.substring(0, name.length() - 6); // removes ".class" suffix
-                        Class<?> clazz = Class.forName(packageName + "." + name); //recognises whether the clazz is a subclass of Plugin interface
-                        if (Plugin.class.isAssignableFrom(clazz))
-                            allPlugins.add(clazz);
-                    }
-                }
-            }
-        } catch (Exception ignored) { }
+        ServiceLoader<Plugin> serviceLoader = ServiceLoader.load(Plugin.class);
 
-        for (Class<?> cl : allPlugins) { //creates a new instance of every class implementing Plugin interface
-            try {
-                Constructor<?>[] constructorsArr = cl.getDeclaredConstructors();
-                for (Constructor<?> constructor : constructorsArr) {
-                    plugins.add((Plugin) constructor.newInstance());
-                }
-            } catch (IllegalAccessException | InstantiationException | InvocationTargetException ignored) { }
+        for (Plugin plugin : serviceLoader) {
+            plugins.add(plugin);
         }
-        plugins.sort(Comparator.comparingInt(Plugin::pluginID)); // sorts by their hardwired id numbers in order to appear in correct order
+        plugins.sort(Comparator.comparingInt(Plugin::pluginID));
 
         return plugins;
     }

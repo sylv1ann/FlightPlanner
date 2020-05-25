@@ -1,0 +1,4 @@
+cz.cuni.mff.java.flightplanner.plugin.AirportInfoPlugin
+cz.cuni.mff.java.flightplanner.plugin.ExitFlightPlannerPlugin
+cz.cuni.mff.java.flightplanner.plugin.WeatherInfoPlugin
+cz.cuni.mff.java.flightplanner.plugin.CreateFlightPlanPlugin
